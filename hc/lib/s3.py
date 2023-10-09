@@ -1,22 +1,26 @@
+from __future__ import annotations
+
+import logging
 from io import BytesIO
 from threading import Thread
-import time
 
 from django.conf import settings
+from statsd.defaults.env import statsd
 
 try:
     from minio import Minio, S3Error
     from minio.deleteobjects import DeleteObject
     from urllib3 import PoolManager
-    from urllib3.exceptions import ReadTimeoutError
+    from urllib3.exceptions import HTTPError, ReadTimeoutError
 except ImportError:
     # Enforce
     settings.S3_BUCKET = None
 
 _client = None
+logger = logging.getLogger(__name__)
 
 
-def client():
+def client() -> Minio:
     if not settings.S3_BUCKET:
         raise Exception("Object storage is not configured")
 
@@ -37,7 +41,7 @@ ASCII_J = ord("j")
 ASCII_Z = ord("z")
 
 
-def enc(n):
+def enc(n: int) -> str:
     """Generate an object key in the "<sorting prefix>-<n>" form.
 
     >>> [enc(i) for i in range(0, 5)]
@@ -61,24 +65,36 @@ def enc(n):
     return len_inverted + inverted + "-" + s
 
 
-def get_object(code, n):
+def get_object(code: str, n: int) -> bytes | None:
     if not settings.S3_BUCKET:
         return None
 
-    key = "%s/%s" % (code, enc(n))
-    response = None
-    try:
-        response = client().get_object(settings.S3_BUCKET, key)
-        return response.read()
-    except S3Error:
-        return None
-    finally:
-        if response:
-            response.close()
-            response.release_conn()
+    with statsd.timer("hc.lib.s3.getObjectTime"):
+        key = "%s/%s" % (code, enc(n))
+        response = None
+        try:
+            response = client().get_object(settings.S3_BUCKET, key)
+            return response.read()
+        except S3Error as e:
+            if e.code == "NoSuchKey":
+                # It's not an error condition if an object does not exist.
+                # Return None, don't log exception, don't increase error counter.
+                return None
+
+            logger.exception("S3Error in hc.lib.s3.get_object")
+            statsd.incr("hc.lib.s3.getObjectErrors")
+            return None
+        except HTTPError:
+            logger.exception("HTTPError in hc.lib.s3.get_object")
+            statsd.incr("hc.lib.s3.getObjectErrors")
+            return None
+        finally:
+            if response:
+                response.close()
+                response.release_conn()
 
 
-def put_object(code, n, data):
+def put_object(code, n: int, data: bytes) -> None:
     key = "%s/%s" % (code, enc(n))
     retries = 10
     while True:
@@ -105,17 +121,17 @@ def _remove_objects(code, upto_n):
     if delete_objs:
         num_objs = len(delete_objs)
         try:
-            start = time.time()
-            errors = client().remove_objects(settings.S3_BUCKET, delete_objs)
-            for e in errors:
-                print("remove_objects error: ", e)
-            total = time.time() - start
-            print("remove_objects for %d objects took %.1fs" % (num_objs, total))
+            with statsd.timer("hc.lib.s3.removeObjectsTime"):
+                errors = client().remove_objects(settings.S3_BUCKET, delete_objs)
+                for e in errors:
+                    statsd.incr("hc.lib.s3.removeObjectsErrors")
+                    logger.error(f"remove_objects error: {e}")
         except ReadTimeoutError:
-            print("remove_objects timed out for %d objects" % num_objs)
+            logger.exception(f"ReadTimeoutError while removing {num_objs} objects")
+            statsd.incr("hc.lib.s3.removeObjectsErrors")
 
 
-def remove_objects(check_code, upto_n):
+def remove_objects(check_code: str, upto_n: int) -> None:
     """Remove keys with n values below or equal to `upto_n`.
 
     The S3 API calls can take seconds to complete,

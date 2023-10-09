@@ -1,16 +1,19 @@
 # coding: utf-8
 
-from datetime import timedelta as td
-from unittest.mock import patch
+from __future__ import annotations
 
+from datetime import timedelta as td
+from unittest.mock import Mock, patch
+
+from django.test.utils import override_settings
 from django.utils.timezone import now
+
 from hc.api.models import Channel, Check, Notification
 from hc.test import BaseTestCase
-from django.test.utils import override_settings
 
 
 class NotifyVictorOpsTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self.check = Check(project=self.project)
@@ -25,25 +28,24 @@ class NotifyVictorOpsTestCase(BaseTestCase):
         self.channel.checks.add(self.check)
 
     @patch("hc.api.transports.curl.request")
-    def test_it_works(self, mock_post):
+    def test_it_works(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.channel.notify(self.check)
         assert Notification.objects.count() == 1
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
+        payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["message_type"], "CRITICAL")
 
     @override_settings(VICTOROPS_ENABLED=False)
-    def test_it_requires_victorops_enabled(self):
+    def test_it_requires_victorops_enabled(self) -> None:
         self.channel.notify(self.check)
 
         n = Notification.objects.get()
         self.assertEqual(n.error, "Splunk On-Call notifications are not enabled.")
 
     @patch("hc.api.transports.curl.request")
-    def test_it_does_not_escape_description(self, mock_post):
+    def test_it_does_not_escape_description(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.check.name = "Foo & Bar"
@@ -52,8 +54,7 @@ class NotifyVictorOpsTestCase(BaseTestCase):
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
+        payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(
             payload["state_message"], "Foo & Bar received a ping and is now UP"
         )

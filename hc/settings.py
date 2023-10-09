@@ -2,16 +2,22 @@
 Django settings for healthchecks project.
 
 For the full list of settings and their values, see
-https://docs.djangoproject.com/en/4.1/ref/settings/
+https://docs.djangoproject.com/en/4.2/ref/settings/
 """
+from __future__ import annotations
 
-from typing import Any, Mapping
 import os
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import django_stubs_ext
+
+django_stubs_ext.monkeypatch()
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-def envbool(s, default):
+def envbool(s: str, default: str) -> bool:
     v = os.getenv(s, default=default)
     if v not in ("", "True", "False"):
         msg = "Unexpected value %s=%s, use 'True' or 'False'" % (s, v)
@@ -19,7 +25,7 @@ def envbool(s, default):
     return v == "True"
 
 
-def envint(s, default):
+def envint(s: str, default: str) -> int | None:
     v = os.getenv(s, default)
     if v == "None":
         return None
@@ -35,8 +41,12 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "healthchecks@example.org")
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 USE_PAYMENTS = envbool("USE_PAYMENTS", "False")
 REGISTRATION_OPEN = envbool("REGISTRATION_OPEN", "True")
+if admins := os.getenv("ADMINS"):
+    ADMINS = [(email, email) for email in admins.split(",")]
+
 VERSION = ""
-with open(os.path.join(BASE_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
+
+with (BASE_DIR / "CHANGELOG.md").open(encoding="utf-8") as f:
     for line in f.readlines():
         if line.startswith("## v"):
             VERSION = line.split()[1]
@@ -59,7 +69,7 @@ INSTALLED_APPS = (
 )
 
 
-MIDDLEWARE = (
+MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -69,9 +79,11 @@ MIDDLEWARE = (
     "hc.accounts.middleware.CustomHeaderMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "django.middleware.locale.LocaleMiddleware",
     "hc.accounts.middleware.TeamAccessMiddleware",
-)
+]
+
+if envbool("USE_GZIP_MIDDLEWARE", "False"):
+    MIDDLEWARE.append("django.middleware.gzip.GZipMiddleware")
 
 AUTHENTICATION_BACKENDS = [
     "hc.accounts.backends.EmailBackend",
@@ -87,7 +99,7 @@ ROOT_URLCONF = "hc.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [os.path.join(BASE_DIR, "templates")],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -102,8 +114,28 @@ TEMPLATES = [
     }
 ]
 
+# Extend Django logging to log unhandled exceptions to console even when DEBUG=False
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "require_debug_false": {
+            "()": "django.utils.log.RequireDebugFalse",
+        },
+    },
+    "handlers": {
+        "console_debug_false": {
+            "level": "ERROR",
+            "class": "logging.StreamHandler",
+            "filters": ["require_debug_false"],
+        },
+    },
+    "loggers": {"django.request": {"handlers": ["console_debug_false"]}},
+}
+
 WSGI_APPLICATION = "hc.wsgi.application"
 TEST_RUNNER = "hc.api.tests.CustomRunner"
+DEFAULT_EXCEPTION_REPORTER_FILTER = "hc.debug.ExceptionReporterFilter"
 
 
 # Default database engine is SQLite. So one can just check out code,
@@ -112,7 +144,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 DATABASES: Mapping[str, Any] = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.getenv("DB_NAME", BASE_DIR + "/hc.sqlite"),
+        "NAME": os.getenv("DB_NAME", BASE_DIR / "hc.sqlite"),
     }
 }
 
@@ -153,7 +185,7 @@ if os.getenv("DB") == "mysql":
 
 USE_TZ = True
 TIME_ZONE = "UTC"
-LOCALE_PATHS = (os.path.join(BASE_DIR, "locale"),)
+USE_I18N = False
 
 SITE_ROOT = os.getenv("SITE_ROOT", "http://localhost:8000")
 SITE_NAME = os.getenv("SITE_NAME", "Mychecks")
@@ -163,8 +195,8 @@ PING_ENDPOINT = os.getenv("PING_ENDPOINT", SITE_ROOT + "/ping/")
 PING_EMAIL_DOMAIN = os.getenv("PING_EMAIL_DOMAIN", "localhost")
 PING_BODY_LIMIT = envint("PING_BODY_LIMIT", "10000")
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
-STATIC_ROOT = os.path.join(BASE_DIR, "static-collected")
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "static-collected"
 STATICFILES_FINDERS = (
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
@@ -172,10 +204,20 @@ STATICFILES_FINDERS = (
 )
 COMPRESS_OFFLINE = True
 COMPRESS_CSS_HASHING_METHOD = "content"
+COMPRESS_STORAGE = "compressor.storage.GzipCompressorFileStorage"
+# Use CssRelativeFilter instead of CssAbsoluteFilter to fix
+# icon font loading when serving Healthchecks from a subdirectory
+COMPRESS_FILTERS = {
+    "css": [
+        "compressor.filters.css_default.CssRelativeFilter",
+        "compressor.filters.cssmin.rCSSMinFilter",
+    ],
+    "js": ["compressor.filters.jsmin.rJSMinFilter"],
+}
 
 
 def immutable_file_test(path, url):
-    return url.startswith("/static/CACHE/") or url.startswith("/static/fonts/")
+    return "/static/CACHE/" in url or "/static/fonts/" in url
 
 
 WHITENOISE_IMMUTABLE_FILE_TEST = immutable_file_test
@@ -188,6 +230,7 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = envbool("EMAIL_USE_TLS", "True")
 EMAIL_USE_SSL = envbool("EMAIL_USE_SSL", "False")
 EMAIL_USE_VERIFICATION = envbool("EMAIL_USE_VERIFICATION", "True")
+EMAIL_MAIL_FROM_TMPL = os.getenv("EMAIL_MAIL_FROM_TMPL", "")
 
 # WebAuthn
 RP_ID = os.getenv("RP_ID")
@@ -199,7 +242,7 @@ S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
 S3_ENDPOINT = os.getenv("S3_ENDPOINT")
 S3_REGION = os.getenv("S3_REGION")
 S3_BUCKET = os.getenv("S3_BUCKET")
-S3_TIMEOUT = envint("S3_TIMEOUT", 60)
+S3_TIMEOUT = envint("S3_TIMEOUT", "60")
 
 # Integrations
 
@@ -249,6 +292,9 @@ PUSHOVER_EMERGENCY_EXPIRATION = int(os.getenv("PUSHOVER_EMERGENCY_EXPIRATION", "
 PUSHBULLET_CLIENT_ID = os.getenv("PUSHBULLET_CLIENT_ID")
 PUSHBULLET_CLIENT_SECRET = os.getenv("PUSHBULLET_CLIENT_SECRET")
 
+# Rocket.Chat
+ROCKETCHAT_ENABLED = envbool("ROCKETCHAT_ENABLED", "True")
+
 # Local shell commands
 SHELL_ENABLED = envbool("SHELL_ENABLED", "False")
 
@@ -271,6 +317,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TWILIO_ACCOUNT = os.getenv("TWILIO_ACCOUNT")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH")
 TWILIO_FROM = os.getenv("TWILIO_FROM")
+TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
 TWILIO_USE_WHATSAPP = envbool("TWILIO_USE_WHATSAPP", "False")
 
 # Trello
@@ -287,5 +334,5 @@ INTEGRATIONS_ALLOW_PRIVATE_IPS = envbool("INTEGRATIONS_ALLOW_PRIVATE_IPS", "Fals
 ZULIP_ENABLED = envbool("ZULIP_ENABLED", "True")
 
 # Read additional configuration from hc/local_settings.py if it exists
-if os.path.exists(os.path.join(BASE_DIR, "hc/local_settings.py")):
-    from .local_settings import *
+if (BASE_DIR / "hc/local_settings.py").exists():
+    from .local_settings import *  # noqa: F403

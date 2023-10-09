@@ -62,7 +62,7 @@ $(function () {
         }, 300);
     });
 
-    $("#details-integrations.rw tr").click(function() {
+    $(".details-integrations.rw tr").click(function() {
         var isOn = $(this).toggleClass("on").hasClass("on");
         $(".label", this).text(isOn ? "ON" : "OFF");
 
@@ -76,6 +76,8 @@ $(function () {
     });
 
     var statusUrl = document.getElementById("events").dataset.statusUrl;
+    // Look up the active tz switch to determine the initial display timezone:
+    var lastFormat = $(".active", "#format-switcher").data("format");
     var lastStatusText = "";
     var lastUpdated = "";
     var lastStarted = false;
@@ -116,22 +118,16 @@ $(function () {
     }, true);
 
     // Copy to clipboard
-    var clipboard = new ClipboardJS('button.copy-btn');
-    $("button.copy-btn").mouseout(function(e) {
-        setTimeout(function() {
-            e.target.textContent = e.target.dataset.label;
-        }, 300);
-    });
-
-    clipboard.on('success', function(e) {
-        e.trigger.textContent = "Copied!";
-        e.clearSelection();
-    });
-
-    clipboard.on('error', function(e) {
-        var text = e.trigger.getAttribute("data-clipboard-text");
-        prompt("Press Ctrl+C to select:", text)
-    });
+    $("button.copy-btn")
+        .click(function() {
+            navigator.clipboard.writeText(this.dataset.clipboardText);
+            this.textContent = "Copied!";
+        })
+        .mouseout(function(e) {
+            setTimeout(function() {
+                e.target.textContent = e.target.dataset.label;
+            }, 300);
+        });
 
     $("#events").on("click", "tr.ok", function() {
         var n = $("td", this).first().text();
@@ -140,7 +136,6 @@ $(function () {
         return false;
     });
 
-    var lastFormat = "local";
     function switchDateFormat(format) {
         lastFormat = format;
 
@@ -163,7 +158,6 @@ $(function () {
         switchDateFormat(format);
     });
 
-
     var transferFormLoadStarted = false;
     $("#transfer-btn").on("mouseenter click", function() {
         if (transferFormLoadStarted)
@@ -172,7 +166,6 @@ $(function () {
         transferFormLoadStarted = true;
         $.get(this.dataset.url, function(data) {
             $("#transfer-modal" ).html(data);
-            $("#target-project").selectpicker();
         });
     });
 
@@ -188,5 +181,11 @@ $(function () {
         var enableInputs = $("input.filter-toggle:checked").length > 0;
         $(".filter-kw").prop("disabled", !enableInputs);
     });
+
+    // If the URL hash is #ping-<number>,  open the "Ping Details" dialog
+    if (document.location.hash.indexOf("#ping-") === 0) {
+        var n = parseInt(document.location.hash.substr(6));
+        loadPingDetails(`../pings/${n}/`);
+    }
 
 });

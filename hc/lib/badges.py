@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.conf import settings
 from django.core.signing import base64_hmac
 from django.template.loader import render_to_string
@@ -73,14 +75,14 @@ WIDTHS = {
 COLORS = {"up": "#4c1", "late": "#fe7d37", "down": "#e05d44"}
 
 
-def get_width(s):
+def get_width(s: str) -> int:
     total = 0
     for c in s:
         total += WIDTHS.get(c, 7)
     return total
 
 
-def get_badge_svg(tag, status):
+def get_badge_svg(tag: str, status: str) -> str:
     w1 = get_width(tag) + 10
     w2 = get_width(status) + 10
     ctx = {
@@ -97,12 +99,14 @@ def get_badge_svg(tag, status):
     return render_to_string("badge.svg", ctx)
 
 
-def check_signature(username, tag, sig):
+def check_signature(username: str, tag: str, sig: str) -> bool:
     ours = base64_hmac(str(username), tag, settings.SECRET_KEY)
     return ours[:8] == sig[:8]
 
 
-def get_badge_url(username, tag, fmt="svg", with_late=False):
+def get_badge_url(
+    username: str, tag: str, fmt: str = "svg", with_late: bool = False
+) -> str:
     sig = base64_hmac(str(username), tag, settings.SECRET_KEY)[:8]
     if not with_late:
         sig += "-2"

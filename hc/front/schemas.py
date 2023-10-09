@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 telegram_callback = {
     "type": "object",
     "properties": {
@@ -15,6 +17,7 @@ telegram_callback = {
                     "required": ["id", "type"],
                 },
                 "text": {"type": "string"},
+                "message_thread_id": {"type": "number"},
             },
             "required": ["chat", "text"],
         }

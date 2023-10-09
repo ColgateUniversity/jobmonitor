@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_project.html" %}
 {% load compress humanize static hc_extras %}
 
 {% block title %}Integrations - {{ site_name }}{% endblock %}
@@ -28,7 +28,7 @@
         {% for ch in channels %}
         <tr class="channel-row kind-{{ ch.kind }}">
             <td class="icon-cell">
-                <img src="{% static ch.icon_path %}" alt="{{ ch.get_kind_display }}" />
+                <img src="{% static ch.icon_path %}" alt="{{ ch.get_kind_display }}" class="kind-{{ ch.kind }}" />
             </td>
             <td>
                 <div class="edit-name" data-toggle="modal" data-target="#name-{{ ch.code }}">
@@ -39,15 +39,15 @@
                      {% endif %}
                      <div class="channel-details-mini">
                         {% if ch.kind == "email" %}
-                            Email to <span>{{ ch.email_value }}</span>
-                            {% if ch.email_notify_down and not ch.email_notify_up %}
+                            Email to <span>{{ ch.email.value }}</span>
+                            {% if ch.email.notify_down and not ch.email.notify_up %}
                                 (down only)
                             {% endif %}
-                            {% if ch.email_notify_up and not ch.email_notify_down %}
+                            {% if ch.email.notify_up and not ch.email.notify_down %}
                                 (up only)
                             {% endif %}
                         {% elif ch.kind == "pd" %}
-                            PagerDuty account <span>{{ ch.pd_account }}</span>
+                            PagerDuty account <span>{{ ch.pd.account }}</span>
                         {% elif ch.kind == "po" %}
                             Pushover ({{ ch.po_priority }} priority)
                         {% elif ch.kind == "slack" %}
@@ -58,23 +58,23 @@
                             {% endif %}
                         {% elif ch.kind == "telegram" %}
                             Telegram
-                            {% if ch.telegram_type == "group" %}
-                                group <span>{{ ch.telegram_name }}</span>
-                            {% elif ch.telegram_type == "private" %}
-                                user <span>{{ ch.telegram_name }}</span>
-                            {% elif ch.telegram_type == "channel" %}
-                                channel <span>{{ ch.telegram_name }}</span>
+                            {% if ch.telegram.type == "group" %}
+                                group <span>{{ ch.telegram.name }}</span>
+                            {% elif ch.telegram.type == "private" %}
+                                user <span>{{ ch.telegram.name }}</span>
+                            {% elif ch.telegram.type == "channel" %}
+                                channel <span>{{ ch.telegram.name }}</span>
                             {% endif %}
                         {% elif ch.kind == "sms" %}
-                            SMS to <span>{{ ch.phone_number }}</span>
-                            {% if ch.sms_notify_down and not ch.sms_notify_up %}
+                            SMS to <span>{{ ch.phone.value }}</span>
+                            {% if ch.phone.notify_down and not ch.phone.notify_up %}
                                 (down only)
                             {% endif %}
-                            {% if ch.sms_notify_up and not ch.sms_notify_down %}
+                            {% if ch.phone.notify_up and not ch.phone.notify_down %}
                                 (up only)
                             {% endif %}
                         {% elif ch.kind == "call" %}
-                            Phone call to <span>{{ ch.phone_number }}</span>
+                            Phone call to <span>{{ ch.phone.value }}</span>
                         {% elif ch.kind == "trello" %}
                             Trello
                             board <span>{{ ch.trello_board_list|first }}</span>,
@@ -82,11 +82,11 @@
                         {% elif ch.kind == "matrix" %}
                             Matrix <span>{{ ch.value }}</span>
                         {% elif ch.kind == "whatsapp" %}
-                            WhatsApp to <span>{{ ch.phone_number }}</span>
-                            {% if ch.whatsapp_notify_down and not ch.whatsapp_notify_up %}
+                            WhatsApp to <span>{{ ch.phone.value }}</span>
+                            {% if ch.phone.notify_down and not ch.phone.notify_up %}
                                 (down only)
                             {% endif %}
-                            {% if ch.whatsapp_notify_up and not ch.whatsapp_notify_down %}
+                            {% if ch.phone.notify_up and not ch.phone.notify_down %}
                                 (up only)
                             {% endif %}
                         {% elif ch.kind == "zulip" %}
@@ -97,13 +97,16 @@
                             user <span>{{ ch.zulip_to}}</span>
                             {% endif %}
                         {% elif ch.kind == "signal" %}
-                            Signal to <span>{{ ch.phone_number }}</span>
-                            {% if ch.signal_notify_down and not ch.signal_notify_up %}
+                            Signal to <span>{{ ch.phone.value }}</span>
+                            {% if ch.phone.notify_down and not ch.phone.notify_up %}
                                 (down only)
                             {% endif %}
-                            {% if ch.signal_notify_up and not ch.signal_notify_down %}
+                            {% if ch.phone.notify_up and not ch.phone.notify_down %}
                                 (up only)
                             {% endif %}
+                        {% elif ch.kind == "ntfy" %}
+                            ntfy topic <span>{{ ch.ntfy_topic }}</span>,
+                            {{ ch.ntfy_priority_display }} priority
                         {% else %}
                             {{ ch.get_kind_display }}
                         {% endif %}
@@ -255,6 +258,13 @@
             <a href="{% url 'hc-add-gotify' project.code %}" class="btn btn-primary">Add Integration</a>
         </li>
 
+        <li>
+            <img src="{% static 'img/integrations/group.png' %}" class="icon" alt="Group icon" />
+            <h2>Group</h2>
+            <p> Deliver to multiple integrations at once.</p>
+            <a href="{% url 'hc-add-group' project.code %}" class="btn btn-primary">Add Integration</a>
+        </li>
+
         {% if enable_linenotify %}
         <li>
             <img src="{% static 'img/integrations/linenotify.png' %}"
@@ -269,7 +279,7 @@
         {% if enable_matrix %}
         <li>
             <img src="{% static 'img/integrations/matrix.png' %}"
-                 class="icon matrix" alt="Matrix icon" />
+                 class="icon kind-matrix" alt="Matrix icon" />
 
             <h2>Matrix</h2>
             <p>Post notifications to a Matrix room.</p>
@@ -280,7 +290,7 @@
         {% if enable_mattermost %}
         <li>
             <img src="{% static 'img/integrations/mattermost.png' %}"
-                class="icon mattermost" alt="Mattermost icon" />
+                class="icon kind-mattermost" alt="Mattermost icon" />
 
             <h2>Mattermost</h2>
             <p>High Trust Messaging for the Enterprise.</p>
@@ -298,6 +308,15 @@
             <a href="{% url 'hc-add-msteams' project.code %}" class="btn btn-primary">Add Integration</a>
         </li>
         {% endif %}
+
+        <li>
+            <img src="{% static 'img/integrations/ntfy.png' %}"
+                class="icon kind-ntfy" alt="ntfy" />
+
+            <h2>ntfy</h2>
+            <p>Send push notifications to your phone or desktop via PUT/POST.</p>
+            <a href="{% url 'hc-add-ntfy' project.code %}" class="btn btn-primary">Add Integration</a>
+        </li>
 
         {% if enable_opsgenie %}
         <li>
@@ -373,6 +392,17 @@
             <h2>Pushover</h2>
             <p>Receive instant push notifications on your phone or tablet.</p>
             <a href="{% url 'hc-add-pushover' project.code %}" class="btn btn-primary">Add Integration</a>
+        </li>
+        {% endif %}
+
+        {% if enable_rocketchat %}
+        <li>
+            <img src="{% static 'img/integrations/rocketchat.png' %}"
+                class="icon" alt="Rocket.Chat icon" />
+
+            <h2>Rocket.Chat</h2>
+            <p>Open-source communications platform for organizations with high data protection standards.</p>
+            <a href="{% url 'hc-add-rocketchat' project.code %}" class="btn btn-primary">Add Integration</a>
         </li>
         {% endif %}
 
@@ -598,14 +628,14 @@
 
 
                     {% if ch.kind == "shell" %}
-                        {% if ch.cmd_down %}
+                        {% if ch.shell.cmd_down %}
                             <p><strong>Execute on "down" events:</strong></p>
-                            <pre>{{ ch.cmd_down }}</pre>
+                            <pre>{{ ch.shell.cmd_down }}</pre>
                         {% endif %}
 
-                        {% if ch.cmd_up %}
+                        {% if ch.shell.cmd_up %}
                             <p><strong>Execute on "up" events:</strong></p>
-                            <pre>{{ ch.cmd_up }}</pre>
+                            <pre>{{ ch.shell.cmd_up }}</pre>
                         {% endif %}
                     {% endif %}
                 </div>
@@ -627,8 +657,6 @@
 
 {% block scripts %}
 {% compress js %}
-<script src="{% static 'js/jquery-3.6.0.min.js' %}"></script>
-<script src="{% static 'js/bootstrap.min.js' %}"></script>
 <script src="{% static 'js/channels.js' %}"></script>
 {% endcompress %}
 {% endblock %}

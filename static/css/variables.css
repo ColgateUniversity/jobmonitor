@@ -1,5 +1,6 @@
 :root {
     color-scheme: light;
+    --account-warning-bg:  #ffab0b;
     --alert-no-data-bg: #f5f5f5;
     --alert-no-data-border: #ddd;
     --alert-no-data-color: #444;
@@ -72,11 +73,14 @@
     --tag-up-color: #333;
     --text-color: #333;
     --text-muted:  #767676;
+    --text-success: #3c763d;
+    --text-danger: #a94442;
 }
 
 
 body.dark {
     color-scheme: dark;
+    --account-warning-bg: #ffab0b;
     --alert-no-data-bg: #29292c;
     --alert-no-data-border: #303033;
     --alert-no-data-color: #878790;
@@ -92,11 +96,11 @@ body.dark {
     --btn-active-border: #818191;
     --btn-active-color: hsl(240, 3%, 98%);
     --btn-default-bg: #383840;
-    --btn-default-border: #4e4e59;
+    --btn-default-border: transparent;
     --btn-default-color: hsl(240, 3%, 88%);
-    --btn-remove-bg: #202024;
+    --btn-remove-bg: transparent;
     --btn-remove-color: #ff4c46;
-    --btn-remove-hover: #3f1a22;
+    --btn-remove-hover: rgba(255, 76, 70, 0.15);;
     --channel-off-color: hsl(240, 6.7%, 23.5%);
     --channel-off-inside-color: hsl(240, 3.7%, 43.5%);
     --cheatsheet-example-bg: #383840;
@@ -149,4 +153,6 @@ body.dark {
     --tag-up-color: #e0e0e2;
     --text-color: hsl(240, 3.3%, 88.2%);
     --text-muted: hsl(240, 3%, 55%);
+    --text-success: #22bc66;
+    --text-danger: #d9534f;
 }

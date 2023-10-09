@@ -1,18 +1,23 @@
 # coding: utf-8
 
-from datetime import timedelta as td
-import json
-from unittest.mock import patch
+from __future__ import annotations
 
+import json
+from datetime import timedelta as td
+from unittest.mock import Mock, patch
+
+from django.conf import settings
 from django.core import mail
+from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.test.utils import override_settings
 from django.utils.timezone import now
+
 from hc.api.models import Channel, Check, Notification, Ping
 from hc.test import BaseTestCase
 
 
 class NotifyEmailTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self.check = Check(project=self.project)
@@ -37,7 +42,14 @@ class NotifyEmailTestCase(BaseTestCase):
         self.channel.save()
         self.channel.checks.add(self.check)
 
-    def test_it_works(self):
+    def get_html(self, email: EmailMessage) -> str:
+        assert isinstance(email, EmailMultiAlternatives)
+        html, _ = email.alternatives[0]
+        assert isinstance(html, str)
+        return html
+
+    @override_settings(DEFAULT_FROM_EMAIL="alerts@example.org")
+    def test_it_works(self) -> None:
         self.channel.notify(self.check)
 
         n = Notification.objects.get()
@@ -48,11 +60,12 @@ class NotifyEmailTestCase(BaseTestCase):
 
         email = mail.outbox[0]
         self.assertEqual(email.to[0], "alice@example.org")
-        self.assertEqual(email.extra_headers["X-Status-Url"], n.status_url())
+        self.assertNotIn("X-Bounce-ID", email.extra_headers)
         self.assertTrue("List-Unsubscribe" in email.extra_headers)
         self.assertTrue("List-Unsubscribe-Post" in email.extra_headers)
+        self.assertTrue(email.extra_headers["Message-ID"].endswith("@example.org>"))
 
-        html = email.alternatives[0][0]
+        html = self.get_html(email)
         # Name
         self.assertIn("Daily Backup", email.body)
         self.assertIn("Daily Backup", html)
@@ -92,9 +105,16 @@ class NotifyEmailTestCase(BaseTestCase):
         # Check's code must not be in the plain text body
         self.assertNotIn(str(self.check.code), email.body)
 
+    @override_settings(DEFAULT_FROM_EMAIL='"Alerts" <alerts@example.org>')
+    def test_it_message_id_generation_handles_angle_brackets(self) -> None:
+        self.channel.notify(self.check)
+
+        email = mail.outbox[0]
+        self.assertTrue(email.extra_headers["Message-ID"].endswith("@example.org>"))
+
     @override_settings(S3_BUCKET="test-bucket")
     @patch("hc.api.models.get_object")
-    def test_it_loads_body_from_object_storage(self, get_object):
+    def test_it_loads_body_from_object_storage(self, get_object: Mock) -> None:
         get_object.return_value = b"Body Line 1\nBody Line 2"
 
         self.ping.object_size = 1000
@@ -103,52 +123,49 @@ class NotifyEmailTestCase(BaseTestCase):
 
         self.channel.notify(self.check)
 
-        email = mail.outbox[0]
-        html = email.alternatives[0][0]
+        html = self.get_html(mail.outbox[0])
         self.assertIn("Line 1<br>Line2", html)
 
-        args, kwargs = get_object.call_args
-        code, n = args
-        self.assertEqual(code, self.check.code)
+        code, n = get_object.call_args.args
+        self.assertEqual(code, str(self.check.code))
         self.assertEqual(n, 1)
 
-    def test_it_shows_cron_schedule(self):
+    def test_it_shows_cron_schedule(self) -> None:
         self.check.kind = "cron"
         self.check.schedule = "0 18-23,0-8 * * *"
+        self.check.tz = "Europe/Riga"
         self.check.save()
 
         self.channel.notify(self.check)
 
         email = mail.outbox[0]
-        html = email.alternatives[0][0]
-
+        html = self.get_html(email)
         self.assertIn("0 18-23,0-8 * * *", email.body)
+        self.assertIn("Europe/Riga", email.body)
         self.assertIn("<code>0 18-23,0-8 * * *</code>", html)
+        self.assertIn("Europe/Riga", html)
 
-    def test_it_truncates_long_body(self):
+    def test_it_truncates_long_body(self) -> None:
         self.ping.body = "X" * 10000 + ", and the rest gets cut off"
         self.ping.save()
 
         self.channel.notify(self.check)
 
         email = mail.outbox[0]
-        html = email.alternatives[0][0]
-
+        html = self.get_html(email)
         self.assertIn("[truncated]", email.body)
         self.assertIn("[truncated]", html)
         self.assertNotIn("the rest gets cut off", html)
 
-    def test_it_handles_missing_ping_object(self):
+    def test_it_handles_missing_ping_object(self) -> None:
         self.ping.delete()
 
         self.channel.notify(self.check)
 
-        email = mail.outbox[0]
-        html = email.alternatives[0][0]
-
+        html = self.get_html(mail.outbox[0])
         self.assertIn("Daily Backup", html)
 
-    def test_it_handles_missing_profile(self):
+    def test_it_handles_missing_profile(self) -> None:
         self.channel.value = "alice+notifications@example.org"
         self.channel.save()
 
@@ -157,13 +174,13 @@ class NotifyEmailTestCase(BaseTestCase):
         email = mail.outbox[0]
         self.assertEqual(email.to[0], "alice+notifications@example.org")
 
-        html = email.alternatives[0][0]
+        html = self.get_html(email)
         self.assertIn("Daily Backup", html)
 
         self.assertNotIn("Projects Overview", email.body)
         self.assertNotIn("Projects Overview", html)
 
-    def test_email_transport_handles_json_value(self):
+    def test_email_transport_handles_json_value(self) -> None:
         payload = {"value": "alice@example.org", "up": True, "down": True}
         self.channel.value = json.dumps(payload)
         self.channel.save()
@@ -176,7 +193,7 @@ class NotifyEmailTestCase(BaseTestCase):
         email = mail.outbox[0]
         self.assertEqual(email.to[0], "alice@example.org")
 
-    def test_it_reports_unverified_email(self):
+    def test_it_reports_unverified_email(self) -> None:
         self.channel.email_verified = False
         self.channel.save()
 
@@ -186,7 +203,7 @@ class NotifyEmailTestCase(BaseTestCase):
         n = Notification.objects.get()
         self.assertEqual(n.error, "Email not verified")
 
-    def test_email_checks_up_down_flags(self):
+    def test_email_checks_up_down_flags(self) -> None:
         payload = {"value": "alice@example.org", "up": True, "down": False}
         self.channel.value = json.dumps(payload)
         self.channel.save()
@@ -197,7 +214,7 @@ class NotifyEmailTestCase(BaseTestCase):
         self.assertEqual(Notification.objects.count(), 0)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_email_handles_amperstand(self):
+    def test_email_handles_amperstand(self) -> None:
         self.check.name = "Foo & Bar"
         self.check.save()
 
@@ -208,7 +225,7 @@ class NotifyEmailTestCase(BaseTestCase):
 
     @override_settings(S3_BUCKET="test-bucket")
     @patch("hc.api.models.get_object")
-    def test_it_handles_pending_body(self, get_object):
+    def test_it_handles_pending_body(self, get_object: Mock) -> None:
         get_object.return_value = None
 
         self.ping.object_size = 1000
@@ -219,12 +236,11 @@ class NotifyEmailTestCase(BaseTestCase):
             self.channel.notify(self.check)
 
         email = mail.outbox[0]
-        html = email.alternatives[0][0]
-
+        html = self.get_html(email)
         self.assertIn("The request body data is being processed", email.body)
         self.assertIn("The request body data is being processed", html)
 
-    def test_it_shows_ignored_nonzero_exitstatus(self):
+    def test_it_shows_ignored_nonzero_exitstatus(self) -> None:
         self.ping.kind = "ign"
         self.ping.exitstatus = 123
         self.ping.save()
@@ -232,17 +248,29 @@ class NotifyEmailTestCase(BaseTestCase):
         self.channel.notify(self.check)
 
         email = mail.outbox[0]
-        html = email.alternatives[0][0]
+        html = self.get_html(email)
         self.assertIn("Ignored", email.body)
         self.assertIn("Ignored", html)
 
-    def test_it_handles_last_ping_log(self):
+    def test_it_handles_last_ping_log(self) -> None:
         self.ping.kind = "log"
         self.ping.save()
 
         self.channel.notify(self.check)
 
         email = mail.outbox[0]
-        html = email.alternatives[0][0]
+        html = self.get_html(email)
         self.assertIn("Log", email.body)
         self.assertIn("Log", html)
+
+    @override_settings(EMAIL_MAIL_FROM_TMPL="%s@bounces.example.org")
+    def test_it_sets_custom_mail_from(self) -> None:
+        self.channel.notify(self.check)
+
+        email = mail.outbox[0]
+        self.assertTrue(email.from_email.startswith("n."))
+        self.assertTrue(email.from_email.endswith("@bounces.example.org"))
+        # The From header should contain the display address
+        self.assertEqual(email.extra_headers["From"], settings.DEFAULT_FROM_EMAIL)
+        # There should be no X-Bounce-ID header
+        self.assertNotIn("X-Bounce-ID", email.extra_headers)

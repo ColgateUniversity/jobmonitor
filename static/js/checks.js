@@ -7,6 +7,7 @@ $(function () {
 
         $("#update-name-form").attr("action", url);
         $("#update-name-input").val(this.dataset.name);
+        $("#update-slug-input").val(this.dataset.slug);
 
         var tagsSelectize = document.getElementById("update-tags-input").selectize;
         tagsSelectize.setValue(this.dataset.tags.split(" "));
@@ -69,25 +70,28 @@ $(function () {
     function applyFilters() {
         // Make a list of currently checked tags:
         var checked = [];
-        var qs = [];
+        var url = new URL(window.location.href);
+        url.search = "";
         $("#my-checks-tags .checked").each(function(index, el) {
             checked.push(el.textContent);
-            qs.push({"name": "tag", "value": el.textContent});
+            url.searchParams.append("tag", el.textContent);
         });
 
         var search = $("#search").val().toLowerCase();
         if (search) {
-            qs.push({"name": "search", "value": search});
+            url.searchParams.append("search", search);
         }
 
         // Update hash
         if (window.history && window.history.replaceState) {
-            var url = $("#checks-table").data("list-url");
-            if (qs.length) {
-                url += "?" + $.param(qs);
-            }
-            window.history.replaceState({}, "", url);
+            window.history.replaceState({}, "", url.toString());
         }
+
+        // Update sort links
+        document.querySelectorAll("a[data-sort-value]").forEach((a) => {
+            url.searchParams.set("sort", a.dataset.sortValue);
+            a.setAttribute("href", url.toString());
+        });
 
         // No checked tags and no search string: show all
         if (checked.length == 0 && !search) {
@@ -139,7 +143,6 @@ $(function () {
         window.location = url;
         return false;
     });
-
 
     $(".pause").tooltip({
         title: "Pause this check?<br />Click again to confirm.",
@@ -244,24 +247,6 @@ $(function () {
         adaptiveSetInterval(refreshStatus);
     }
 
-    // Copy to clipboard
-    var clipboard = new ClipboardJS('button.copy-link');
-    $("button.copy-link").mouseout(function(e) {
-        setTimeout(function() {
-            e.target.textContent = "copy";
-        }, 300);
-    });
-
-    clipboard.on('success', function(e) {
-        e.trigger.textContent = "copied!";
-        e.clearSelection();
-    });
-
-    clipboard.on('error', function(e) {
-        var text = e.trigger.getAttribute("data-clipboard-text");
-        prompt("Press Ctrl+C to select:", text)
-    });
-
     // Configure Selectize for entering tags
     function divToOption() {
         return {value: this.textContent};
@@ -279,4 +264,16 @@ $(function () {
         options: $("#my-checks-tags div").map(divToOption).get()
     });
 
+    $('.my-checks-url').tooltip({title: "Click to copy"});
+    $('.my-checks-url').click(function(e) {
+        if (window.getSelection().toString()) {
+            // do nothing, selection not empty
+            return;
+        }
+
+        navigator.clipboard.writeText(this.textContent);
+        $(".tooltip-inner").text("Copied!");
+    });
+
 });
+

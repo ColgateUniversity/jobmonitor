@@ -1,9 +1,56 @@
-{% extends "base.html" %}
+{% extends "base_project.html" %}
 {% load compress static hc_extras %}
 
 {% block title %}{{ num_down|num_down_title }}{% endblock %}
 
 {% block content %}
+
+{% if num_available < 0 %}
+<div class="row">
+    <div class="col-sm-12">
+        <div id="my-checks-limit-notice">
+            <p>
+            {% if request.user == project.owner %}
+            Your account is currently over its check limit. Please upgrade, or reduce
+            the number of checks in your account.
+            {% else %}
+            The account <strong>{{ project.owner.email }}</strong> is currently
+            over its check limit. Please ask <strong>{{ project.owner.email }}</strong>
+            to upgrade their account.
+            {% endif %}
+
+            Accounts that remain over the limit for more
+            than 30 days are scheduled for deletion.</p>
+
+            <table class="table">
+                <tr>
+                    <th>Project's Owner:</th>
+                    <td>{{ project.owner.email }}</td>
+                </tr>
+                <tr>
+                    <th>Current Plan:</th>
+                    <td>
+                        {% if project.owner.subscription and project.owner.subscription.plan_name %}
+                        {{ project.owner.subscription.plan_name }}
+                        {% else %}
+                        Hobbyist (free)
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Checks Used:</th>
+                    <td class="at-limit">
+                        <span>{{ project.owner.profile.num_checks_used }} of {{ project.owner.profile.check_limit }}</span>
+                    </td>
+                </tr>
+            </table>
+            {% if request.user == project.owner %}
+            <p><a class="btn btn-default" href="{% url 'hc-billing' %}">Billing Details and Plan Upgrades</a></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% if checks %}
 <div class="row">
@@ -47,7 +94,7 @@
                 ({{ checks|length }} in use, {{ num_available }} available)
             </div>
             {% endif %}
-        {% else %}
+        {% elif num_available == 0 %}
             <div class="alert alert-info">
                 <strong>There are more things to monitor.</strong>
                 To add more checks, please
@@ -93,12 +140,8 @@
 {% block scripts %}
 <script id="all-timezones" type="data">UTC,{{ timezones|join:"," }}</script>
 {% compress js %}
-<script src="{% static 'js/jquery-3.6.0.min.js' %}"></script>
-<script src="{% static 'js/bootstrap.min.js' %}"></script>
-<script src="{% static 'js/bootstrap-select.min.js' %}"></script>
 <script src="{% static 'js/selectize.min.js' %}"></script>
 <script src="{% static 'js/nouislider.min.js' %}"></script>
-<script src="{% static 'js/clipboard.min.js' %}"></script>
 <script src="{% static 'js/purify.min.js' %}"></script>
 <script src="{% static 'js/update-timeout-modal.js' %}"></script>
 <script src="{% static 'js/adaptive-setinterval.js' %}"></script>
@@ -106,5 +149,6 @@
 <script src="{% static 'js/checks.js' %}"></script>
 <script src="{% static 'js/add-check-modal.js' %}"></script>
 <script src="{% static 'js/initialize-timezone-selects.js' %}"></script>
+<script src="{% static 'js/slug-suggestions.js' %}"></script>
 {% endcompress %}
 {% endblock %}

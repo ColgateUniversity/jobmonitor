@@ -1,13 +1,18 @@
 """requests-like interface for PycURL."""
 
-from io import BytesIO
+from __future__ import annotations
+
 import ipaddress
 import json
-from urllib.parse import urlencode
 import socket
+from io import BytesIO
+from typing import cast
+from urllib.parse import urlencode
 
-from django.conf import settings
 import pycurl
+from django.conf import settings
+
+from hc.lib.typealias import JSONValue
 
 
 class CurlError(Exception):
@@ -20,21 +25,12 @@ class Response(object):
         self.status_code = status_code
         self.content = content
 
-    def json(self):
-        return json.loads(self.content.decode())
+    def json(self) -> JSONValue:
+        return cast(JSONValue, json.loads(self.content.decode()))
 
     @property
     def text(self) -> str:
         return self.content.decode()
-
-
-def _opensocket(purpose, curl_address):
-    family, socktype, protocol, address = curl_address
-    if not settings.INTEGRATIONS_ALLOW_PRIVATE_IPS:
-        if ipaddress.ip_address(address[0]).is_private:
-            return pycurl.SOCKET_BAD
-
-    return socket.socket(family, socktype, protocol)
 
 
 def _makeheader(k: str, v: str) -> bytes:
@@ -106,10 +102,21 @@ def request(method: str, url: str, **kwargs) -> Response:
 
     """
 
+    opensocket_rejected_ips = []
+
+    def opensocket(purpose, curl_address):
+        family, socktype, protocol, address = curl_address
+        if not settings.INTEGRATIONS_ALLOW_PRIVATE_IPS:
+            if ipaddress.ip_address(address[0]).is_private:
+                opensocket_rejected_ips.append(address[0])
+                return pycurl.SOCKET_BAD
+
+        return socket.socket(family, socktype, protocol)
+
     c = pycurl.Curl()
     c.setopt(pycurl.NOSIGNAL, 1)
     c.setopt(pycurl.PROTOCOLS, pycurl.PROTO_HTTP | pycurl.PROTO_HTTPS)
-    c.setopt(pycurl.OPENSOCKETFUNCTION, _opensocket)
+    c.setopt(pycurl.OPENSOCKETFUNCTION, opensocket)
     c.setopt(pycurl.FOLLOWLOCATION, True)  # Allow redirects
     c.setopt(pycurl.MAXREDIRS, 3)
     if "timeout" in kwargs:
@@ -161,6 +168,8 @@ def request(method: str, url: str, **kwargs) -> Response:
         elif errcode == pycurl.E_COULDNT_RESOLVE_HOST:
             raise CurlError("Could not resolve host")
         elif errcode == pycurl.E_COULDNT_CONNECT:
+            if opensocket_rejected_ips:
+                raise CurlError("Connections to private IP addresses are not allowed")
             raise CurlError("Connection failed")
         elif errcode == pycurl.E_TOO_MANY_REDIRECTS:
             raise CurlError("Too many redirects")

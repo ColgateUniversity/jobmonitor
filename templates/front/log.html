@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_project.html" %}
 {% load compress humanize static hc_extras %}
 
 {% block title %}Event Log - {{ site_name }}{% endblock %}
@@ -15,19 +15,25 @@
 
             <li id="format-switcher-container" class="pull-right hidden-xs">
                 <div id="format-switcher" class="btn-group" data-toggle="buttons">
+                    {% if check.kind == "simple" or check.tz != "UTC" %}
                     <label class="btn btn-default btn-xs" data-format="UTC">
                         <input type="radio" name="date-format" checked>
                         UTC
                     </label>
+                    {% endif %}
 
-                    {% if check.kind == "cron" and check.tz != "UTC" %}
-                    <label class="btn btn-default btn-xs" data-format="{{ check.tz }}">
+                    {% if check.kind == "cron" %}
+                    <label
+                        class="btn btn-default btn-xs active"
+                        data-format="{{ check.tz }}">
                         <input type="radio" name="date-format">
                         {{ check.tz }}
                     </label>
                     {% endif %}
 
-                    <label class="btn btn-default btn-xs active" data-format="local">
+                    <label
+                        class="btn btn-default btn-xs {% if check.kind != 'cron' %}active{% endif %}"
+                        data-format="local">
                         <input type="radio" name="date-format">
                         Browser's time zone
                     </label>
@@ -84,8 +90,6 @@
 
 {% block scripts %}
 {% compress js %}
-<script src="{% static 'js/jquery-3.6.0.min.js' %}"></script>
-<script src="{% static 'js/bootstrap.min.js' %}"></script>
 <script src="{% static 'js/nouislider.min.js' %}"></script>
 <script src="{% static 'js/moment.min.js' %}"></script>
 <script src="{% static 'js/moment-timezone-with-data-10-year-range.min.js' %}"></script>

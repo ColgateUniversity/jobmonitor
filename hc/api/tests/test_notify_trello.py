@@ -1,16 +1,19 @@
-from datetime import timedelta as td
-import json
-from unittest.mock import patch
+from __future__ import annotations
 
-from django.utils.timezone import now
+import json
+from datetime import timedelta as td
+from unittest.mock import Mock, patch
+
 from django.test.utils import override_settings
+from django.utils.timezone import now
+
 from hc.api.models import Channel, Check, Notification
 from hc.test import BaseTestCase
 
 
 @override_settings(TRELLO_APP_KEY="fake-trello-app-key")
 class NotifyTrelloTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self.check = Check(project=self.project)
@@ -33,14 +36,13 @@ class NotifyTrelloTestCase(BaseTestCase):
         self.channel.checks.add(self.check)
 
     @patch("hc.api.transports.curl.request")
-    def test_it_works(self, mock_post):
+    def test_it_works(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.channel.notify(self.check)
         assert Notification.objects.count() == 1
 
-        args, kwargs = mock_post.call_args
-        params = kwargs["params"]
+        params = mock_post.call_args.kwargs["params"]
         self.assertEqual(params["idList"], "fake-list-id")
         self.assertEqual(params["name"], "Down: Foo")
         self.assertIn("Full Details", params["desc"])
@@ -48,7 +50,21 @@ class NotifyTrelloTestCase(BaseTestCase):
         self.assertEqual(params["token"], "fake-token")
 
     @patch("hc.api.transports.curl.request")
-    def test_it_does_not_escape_name(self, mock_post):
+    def test_it_shows_schedule_and_tz(self, mock_post: Mock) -> None:
+        mock_post.return_value.status_code = 200
+        self.check.kind = "cron"
+        self.check.tz = "Europe/Riga"
+        self.check.save()
+
+        self.channel.notify(self.check)
+
+        params = mock_post.call_args.kwargs["params"]
+        a = "\u034f*"
+        self.assertIn(f"**Schedule:** `{a} {a} {a} {a} {a}`", params["desc"])
+        self.assertIn("**Time Zone:** Europe/Riga", params["desc"])
+
+    @patch("hc.api.transports.curl.request")
+    def test_it_does_not_escape_name(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.check.name = "Foo & Bar"
@@ -56,6 +72,5 @@ class NotifyTrelloTestCase(BaseTestCase):
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        params = kwargs["params"]
+        params = mock_post.call_args.kwargs["params"]
         self.assertEqual(params["name"], "Down: Foo & Bar")

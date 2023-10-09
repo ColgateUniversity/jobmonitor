@@ -40,7 +40,7 @@ Here's what each curl parameter does:
 
 ## Signaling Failure from Shell Scripts
 
-You can append `/fail` or `/{exit-status}` to any ping URL and  use the resulting URL
+You can append `/fail` or `/{exit-status}` to any ping URL and use the resulting URL
 to actively signal a failure. The exit status should be a 0-255 integer.
 SITE_NAME will interpret exit status 0 as success and all non-zero values as failures.
 
@@ -60,7 +60,7 @@ curl -m 10 --retry 5 PING_URL/$?
 
 When pinging with HTTP POST, you can put extra diagnostic information in the request
 body. If the request body looks like a valid UTF-8 string, SITE_NAME
-will accept and store the first 10KB of the request body.
+will accept and store the first PING_BODY_LIMIT_FORMATTED of the request body.
 
 In the below example, certbot's output is captured and submitted via HTTP POST:
 

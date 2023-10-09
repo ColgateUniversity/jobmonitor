@@ -41,7 +41,7 @@ SITE_NAME keeps track of the received pings and notifies you as soon as a ping d
 not arrive on time.
 
 Note: you can alternatively add the extra `curl` call as a final line inside the
-`/home/me/backup.sh` script, to keep the cron job's definition clean and short.
+`/home/me/backup.sh` script to keep the cron job's definition clean and short.
 You can use an HTTP client other than curl to send the HTTP request.
 
 ## Curl Options
@@ -57,7 +57,7 @@ Feel free to adjust the curl options to suit your needs.
 :   Makes curl treat non-200 responses as errors.
 
 **-s, --silent**
-:   Silent or quiet mode. Hides the progress meter, but also hides error messages.
+:   Silent or quiet mode. Hides the progress meter but also hides error messages.
 
 **-S, --show-error**
 :   Re-enables error messages when -s is used.
@@ -67,8 +67,8 @@ Feel free to adjust the curl options to suit your needs.
 
 **--retry &lt;num&gt;**
 :   If a transient error is returned when curl tries to perform a
-    transfer, it will retry this number of times before  giving  up.
-    Setting  the number to  0 makes curl do no retries (which is the default).
+    transfer, it will retry this number of times before giving up.
+    Setting the number to 0 makes curl do no retries (which is the default).
     A transient error is a timeout or an HTTP 5xx response code.
 
 **-o /dev/null**
@@ -81,9 +81,9 @@ Grace Time is the amount of extra time to wait when a cron job is running late
 before declaring it as down. Set Grace Time to be above the expected
 duration of your cron job.
 
-For example, let's say the cron job starts at 14:00 every day, and takes
+For example, let's say the cron job starts at 14:00 every day and takes
 between 15 and 25 minutes to complete. The grace time is set to 30 minutes.
-In this scenario, SITE_NAME will expect a ping to arrive at 14:00, but will not send
+In this scenario, SITE_NAME will expect a ping to arrive at 14:00 but will not send
 any alerts yet. If there is no ping by 14:30, it will declare the job failed and
 send alerts.
 
@@ -96,7 +96,7 @@ set up multiple ways to get notified about job failures:
 * **Redundancy:** if one notification channel fails (e.g., an email message gets
 delivered to spam), you will still receive notifications over the other channels.
 * **Use different notification methods depending on job priority**. You can set up
-the notifications from low-priority jobs to email only, but notifications from
+notifications from low-priority jobs to email only, but notifications from
 high-priority jobs to email, SMS, and team chat.
 
 Additionally, to make sure no issues "slip through the cracks", in the
@@ -125,7 +125,7 @@ MAILTO=email@example.org
 So why not just use that? There are several drawbacks:
 
 * For MAILTO to work, the server needs to have a configured MTA.
-* You will not get notified if the whole machine is powered off, or has lost
+* You will not be notified if the whole machine is powered off or has lost
   network connection.
 * If your cron job produces any stdout output, you will receive an
   email every time the job runs. This may result in alert fatigue and you not

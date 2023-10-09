@@ -1,8 +1,10 @@
-import os
+from __future__ import annotations
+
 import sqlite3
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+
 from hc.front.views import _replace_placeholders
 from hc.lib.html import html2text
 
@@ -11,22 +13,23 @@ class Command(BaseCommand):
     help = "Renders Markdown to HTML"
 
     def handle(self, *args, **options):
-        con = sqlite3.connect(os.path.join(settings.BASE_DIR, "search.db"))
+        con = sqlite3.connect(settings.BASE_DIR / "search.db")
         cur = con.cursor()
         cur.execute("DROP TABLE IF EXISTS docs")
         cur.execute(
-            """CREATE VIRTUAL TABLE docs USING FTS5(slug, title, body, tokenize="porter unicode61")"""
+            """CREATE VIRTUAL TABLE docs
+            USING FTS5(slug, title, body, tokenize="porter unicode61")"""
         )
 
-        docs_path = os.path.join(settings.BASE_DIR, "templates/docs")
-        for filename in os.listdir(docs_path):
-            if not filename.endswith(".html"):
+        docs_path = settings.BASE_DIR / "templates/docs"
+        for doc_path in docs_path.glob("*.html-fragment"):
+            if doc_path.stem == "apiv1" or doc_path.stem == "apiv2":
                 continue
 
-            slug = filename[:-5]  # cut ".html"
+            slug = doc_path.stem
             print("Processing %s" % slug)
 
-            html = open(os.path.join(docs_path, filename), "r").read()
+            html = doc_path.open("r").read()
             html = _replace_placeholders(slug, html)
 
             lines = html.split("\n")

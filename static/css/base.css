@@ -40,6 +40,38 @@ body {
     font-size: small;
 }
 
+#project-menu {
+    padding: 0;
+}
+
+#project-menu > .dropdown > a {
+    display: block;
+    padding: 30px 15px;
+    font-size: 18px;
+    text-transform: none;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+#project-menu > .dropdown > a:hover {
+    padding-bottom: 25px;
+    border-bottom: 5px solid var(--border-muted);
+}
+
+#project-menu > .dropdown > a:hover,
+#project-menu > .dropdown > a:active,
+#project-menu > .dropdown > a:focus,
+#project-menu > .dropdown > a:target {
+    text-decoration: none;
+}
+
+#project-menu > .dropdown > .dropdown-menu {
+    margin-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+
 #global-links > li > a {
     font-size: small;
 }
@@ -174,13 +206,29 @@ pre {
     padding: 2px 0;
 }
 
+#account-warning {
+    background: var(--account-warning-bg);
+    color: #000;
+    text-align: center;
+    padding: 8px 0;
+}
+
+#account-warning a {
+    color: #000;
+    text-decoration: underline;
+}
+
 .badge-down {
     background-color: #d9534f;
 }
 
 .dropdown-menu > li.project-item a {
     min-width: 200px;
-    padding: 6px 20px 3px 20px;
+    padding-left: 12px;
+}
+
+.dropdown-menu > li.project-item a span.status {
+    transform: scale(0.7)
 }
 
 .dropdown-menu > li .btn-link {
@@ -257,4 +305,44 @@ input[type=number] {
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button {
     -webkit-appearance: none;
+}
+
+.btn-remove {
+    border-color: #d43f3a;
+    color: var(--btn-remove-color);
+    background-color: var(--btn-remove-bg);
+}
+
+.btn-remove:hover,
+.btn-remove:focus {
+    background-color: var(--btn-remove-hover);
+    color: var(--btn-remove-color);
+}
+
+/* Greyed out help text in selectize dropdowns (e.g. in "Add ntfy" form) */
+.selectize-control .help {
+    opacity: 0.6;
+}
+
+/* Hide caret to  mimic the standard <select> element */
+.selectize-control.no-caret {
+    caret-color: transparent;
+}
+
+.btn-default {
+    box-shadow: 0 5px 0 -3px rgba(0, 0, 0, 0.05);
+}
+
+.btn-remove,
+.btn-danger {
+    box-shadow: 0 5px 0 -3px rgba(212, 63, 58, 0.2);
+}
+
+.btn-primary {
+    box-shadow: 0 5px 0 -3px rgba(34, 188, 102, 0.3);
+}
+
+/* Fix select dropdown in Chrome and dark mode  */
+select.form-control {
+    background-color: var(--panel-bg);
 }

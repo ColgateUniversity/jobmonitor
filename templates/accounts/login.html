@@ -12,6 +12,14 @@
 {% block content %}
 <div class="row">
     <div class="col-xs-10 col-xs-offset-1 col-sm-12 col-sm-offset-0 col-lg-8 col-lg-offset-2">
+        {% if account_closed %}
+        <div class="alert alert-info">
+            <p>
+                <strong>Account closed.</strong>
+                Your account has been closed and its associated data has been deleted.
+            </p>
+        </div>
+        {% endif %}
 
         <h1>Sign In to {{ site_name }}</h1>
         {% if bad_link %}
@@ -28,15 +36,7 @@
 
                     {% if magic_form.identity.errors %}
                     <p class="text-danger">
-                        {% for e in magic_form.identity.errors %}
-                            {{ e }}
-                            {% if e == "Unknown email address." and registration_open %}
-                            <a
-                                href="#"
-                                data-toggle="modal"
-                                data-target="#signup-modal">Create Account?</a>
-                            {% endif %}
-                        {% endfor %}
+                        {% for e in magic_form.identity.errors %}{{ e }}{% endfor %}
                     </p>
                     {% else %}
                     <p>Enter your <strong>email address</strong>.</p>
@@ -149,6 +149,8 @@
 </div>
 
 {% endblock %}
+
+{% block base_scripts %}{% endblock %}
 
 {% block scripts %}
 {% compress js %}

@@ -59,8 +59,6 @@
     width: auto;
     padding-left: 8px;
     margin-left: 8px;
-    /* Fix dropdown background in Chrome & dark mode */
-    background: var(--panel-bg);
 }
 
 .kind-simple, .kind-cron {
@@ -163,14 +161,12 @@
 .label-tag {
     background-color: var(--tag-bg);
     color: var(--tag-color);
-    font-style: normal;
     font-weight: 500;
 }
 
 .label-confirmation {
     background-color: #22bc66;
     color: #fff;
-    font-style: normal;
     font-weight: 500;
 }
 
@@ -229,6 +225,25 @@
 #add-check-grace-unit {
     width: 100px;
     display: inline-block;
+}
+
+/* Over-limit notice */
+#my-checks-limit-notice {
+    border: 5px solid #ffdc3e;
+    border-radius: 2px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+#my-checks-limit-notice table  {
+    margin-top: 20px;
+    width: auto;
+    font-size: small;
+}
+
+#my-checks-limit-notice tr:first-child th,
+#my-checks-limit-notice tr:first-child td {
+    border-color: transparent;
 }
 
 

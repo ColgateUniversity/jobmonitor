@@ -1,23 +1,26 @@
+from __future__ import annotations
+
 import json
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.core import mail
+from django.test.utils import override_settings
+
 from hc.api.models import Channel, Notification
 from hc.test import BaseTestCase
 
 
 class SendTestNotificationTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.channel = Channel(kind="email", project=self.project)
         self.channel.email_verified = True
         self.channel.value = "alice@example.org"
         self.channel.save()
 
-        self.url = "/integrations/%s/test/" % self.channel.code
+        self.url = f"/integrations/{self.channel.code}/test/"
 
-    def test_it_sends_test_email(self):
-
+    def test_it_sends_test_email(self) -> None:
         self.client.login(username="alice@example.org", password="password")
         r = self.client.post(self.url, {}, follow=True)
         self.assertRedirects(r, self.channels_url)
@@ -28,8 +31,8 @@ class SendTestNotificationTestCase(BaseTestCase):
 
         email = mail.outbox[0]
         self.assertEqual(email.to[0], "alice@example.org")
-        self.assertTrue("X-Status-Url" in email.extra_headers)
-        self.assertTrue("List-Unsubscribe" in email.extra_headers)
+        self.assertNotIn("X-Bounce-ID", email.extra_headers)
+        self.assertIn("List-Unsubscribe", email.extra_headers)
 
         # It should update self.channel.last_notify
         self.channel.refresh_from_db()
@@ -40,7 +43,18 @@ class SendTestNotificationTestCase(BaseTestCase):
         self.assertEqual(n.channel, self.channel)
         self.assertEqual(n.error, "")
 
-    def test_it_clears_channel_last_error(self):
+    def test_it_allows_readonly_user(self) -> None:
+        self.bobs_membership.role = "r"
+        self.bobs_membership.save()
+
+        self.client.login(username="bob@example.org", password="password")
+        r = self.client.post(self.url, {})
+        self.assertRedirects(r, self.channels_url)
+
+        # And email should have been sent
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_it_clears_channel_last_error(self) -> None:
         self.channel.last_error = "Something went wrong"
         self.channel.save()
 
@@ -50,7 +64,7 @@ class SendTestNotificationTestCase(BaseTestCase):
         self.channel.refresh_from_db()
         self.assertEqual(self.channel.last_error, "")
 
-    def test_it_sets_channel_last_error(self):
+    def test_it_sets_channel_last_error(self) -> None:
         self.channel.email_verified = False
         self.channel.save()
 
@@ -64,7 +78,7 @@ class SendTestNotificationTestCase(BaseTestCase):
         self.assertEqual(self.channel.last_error, "Email not verified")
 
     @patch("hc.api.transports.curl.request")
-    def test_it_handles_webhooks_with_no_down_url(self, mock_get):
+    def test_it_handles_webhooks_with_no_down_url(self, mock_get: Mock) -> None:
         mock_get.return_value.status_code = 200
 
         self.channel.kind = "webhook"
@@ -94,7 +108,7 @@ class SendTestNotificationTestCase(BaseTestCase):
             timeout=10,
         )
 
-    def test_it_handles_webhooks_with_no_urls(self):
+    def test_it_handles_webhooks_with_no_urls(self) -> None:
         self.channel.kind = "webhook"
         self.channel.value = json.dumps(
             {
@@ -115,13 +129,14 @@ class SendTestNotificationTestCase(BaseTestCase):
         self.assertRedirects(r, self.channels_url)
         self.assertContains(r, "Could not send a test notification")
 
-    def test_it_checks_channel_ownership(self):
+    def test_it_checks_channel_ownership(self) -> None:
         self.client.login(username="charlie@example.org", password="password")
         r = self.client.post(self.url, {}, follow=True)
         self.assertEqual(r.status_code, 404)
 
+    @override_settings(TWILIO_FROM="+000")
     @patch("hc.api.transports.curl.request")
-    def test_it_handles_up_only_sms_channel(self, mock_post):
+    def test_it_handles_up_only_sms_channel(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.channel.kind = "sms"
@@ -133,12 +148,13 @@ class SendTestNotificationTestCase(BaseTestCase):
         self.assertRedirects(r, self.channels_url)
         self.assertContains(r, "Test notification sent!")
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["data"]
+        payload = mock_post.call_args.kwargs["data"]
         self.assertIn("is UP", payload["Body"])
 
     @patch("hc.api.transports.curl.request")
-    def test_it_handles_webhook_with_json_variable(self, mock_post):
+    def test_it_handles_webhook_with_json_variable(self, mock_post: Mock) -> None:
+        mock_post.return_value.status_code = 200
+
         self.channel.kind = "webhook"
         self.channel.value = json.dumps(
             {
@@ -151,8 +167,8 @@ class SendTestNotificationTestCase(BaseTestCase):
         self.channel.save()
 
         self.client.login(username="alice@example.org", password="password")
-        self.client.post(self.url, {}, follow=True)
+        self.client.post(self.url, {})
 
-        args, kwargs = mock_post.call_args
-        body = json.loads(kwargs["data"])
+        payload = mock_post.call_args.kwargs["data"]
+        body = json.loads(payload)
         self.assertEqual(body["name"], "TEST")

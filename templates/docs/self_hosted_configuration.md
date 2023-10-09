@@ -4,6 +4,7 @@ Healthchecks prepares its configuration in `hc/settings.py`. It reads configurat
 from environment variables. Below is a list of variables it reads and uses.
 
 <ul class="self-hosted-configuration-toc">
+<li><a href="#ADMINS">ADMINS</a></li>
 <li><a href="#ALLOWED_HOSTS">ALLOWED_HOSTS</a></li>
 <li><a href="#APPRISE_ENABLED">APPRISE_ENABLED</a></li>
 <li><a href="#DB">DB</a></li>
@@ -52,6 +53,7 @@ from environment variables. Below is a list of variables it reads and uses.
 <li><a href="#PUSHOVER_SUBSCRIPTION_URL">PUSHOVER_SUBSCRIPTION_URL</a></li>
 <li><a href="#REGISTRATION_OPEN">REGISTRATION_OPEN</a></li>
 <li><a href="#REMOTE_USER_HEADER">REMOTE_USER_HEADER</a></li>
+<li><a href="#ROCKETCHAT_ENABLED">ROCKETCHAT_ENABLED</a></li>
 <li><a href="#RP_ID">RP_ID</a></li>
 <li><a href="#S3_ACCESS_KEY">S3_ACCESS_KEY</a></li>
 <li><a href="#S3_BUCKET">S3_BUCKET</a></li>
@@ -75,12 +77,28 @@ from environment variables. Below is a list of variables it reads and uses.
 <li><a href="#TWILIO_ACCOUNT">TWILIO_ACCOUNT</a></li>
 <li><a href="#TWILIO_AUTH">TWILIO_AUTH</a></li>
 <li><a href="#TWILIO_FROM">TWILIO_FROM</a></li>
+<li><a href="#TWILIO_MESSAGING_SERVICE_SID">TWILIO_MESSAGING_SERVICE_SID</a></li>
 <li><a href="#TWILIO_USE_WHATSAPP">TWILIO_USE_WHATSAPP</a></li>
 <li><a href="#USE_PAYMENTS">USE_PAYMENTS</a></li>
 <li><a href="#VICTOROPS_ENABLED">VICTOROPS_ENABLED</a></li>
 <li><a href="#WEBHOOKS_ENABLED">WEBHOOKS_ENABLED</a></li>
 <li><a href="#ZULIP_ENABLED">ZULIP_ENABLED</a></li>
 </ul>
+
+## `ADMINS` {: #ADMINS }
+
+Default: `""` (empty string)
+
+A comma-sepparated list of email addresses to send code error notifications to.
+When `DEBUG=False`, Healthchecks will send the details of exceptions raised in the
+request/response cycle to the listed addresses. Example:
+
+```ini
+ADMINS=alice@example.org,bob@example.org
+```
+
+Note: for error notifications to work, make sure you have also specified working
+SMTP credentials in the `EMAIL_...` environment variables.
 
 ## `ALLOWED_HOSTS` {: #ALLOWED_HOSTS }
 
@@ -95,7 +113,7 @@ ALLOWED_HOSTS=my-hc.example.org,alternative-name.example.org
 
 Apart from the comma-separated syntax, this is a standard Django setting.
 Read more about it in the
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#allowed-hosts).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#allowed-hosts).
 
 ## `APPRISE_ENABLED` {: #APPRISE_ENABLED }
 
@@ -121,35 +139,35 @@ The database engine to use. Possible values: `sqlite`, `postgres`, `mysql`.
 Default: `0`
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#conn-max-age).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#conn-max-age).
 
 ## `DB_HOST` {: #DB_HOST }
 
 Default: `""` (empty string)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#host).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#host).
 
 ## `DB_NAME` {: #DB_NAME }
 
 Default: `hc` (PostgreSQL, MySQL) or `/path/to/projectdir/hc.sqlite` (SQLite)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#name).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#name).
 
 ## `DB_PASSWORD` {: #DB_PASSWORD }
 
 Default: `""` (empty string)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#password).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#password).
 
 ## `DB_PORT` {: #DB_PORT }
 
 Default: `""` (empty string)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#port).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#port).
 
 ## `DB_SSLMODE` {: #DB_SSLMODE }
 
@@ -168,7 +186,7 @@ PostgreSQL-specific, [details](https://www.postgresql.org/docs/10/libpq-connect.
 Default: `postgres` (PostgreSQL) or `root` (MySQL)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#user).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#user).
 
 ## `DEBUG` {: #DEBUG }
 
@@ -179,14 +197,14 @@ A boolean that turns on/off debug mode.
 _Never run a Healthchecks instance in production with the debug mode turned on!_
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#debug).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#debug).
 
 ## `DEFAULT_FROM_EMAIL` {: #DEFAULT_FROM_EMAIL }
 
 Default: `healthchecks@example.org`
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#default-from-email).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#default-from-email).
 
 ## `DISCORD_CLIENT_ID` {: #DISCORD_CLIENT_ID }
 
@@ -218,42 +236,42 @@ The Discord Client Secret, required by the Discord integration. Look it up at
 Default: `""` (empty string)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#email-host).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#email-host).
 
 ## `EMAIL_HOST_PASSWORD` {: #EMAIL_HOST_PASSWORD }
 
 Default: `""` (empty string)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#email-host-password).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#email-host-password).
 
 ## `EMAIL_HOST_USER` {: #EMAIL_HOST_USER }
 
 Default: `""` (empty string)
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#email-host-user).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#email-host-user).
 
 ## `EMAIL_PORT` {: #EMAIL_PORT }
 
 Default: `587`
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#email-port).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#email-port).
 
 ## `EMAIL_USE_TLS` {: #EMAIL_USE_TLS }
 
 Default: `True`
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#email-use-tls).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#email-use-tls).
 
 ## `EMAIL_USE_SSL` {: #EMAIL_USE_SSL}
 
 Default: `False`
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#email-use-ssl).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#email-use-ssl).
 
 ## `EMAIL_USE_VERIFICATION` {: #EMAIL_USE_VERIFICATION }
 
@@ -276,7 +294,7 @@ Default: `""` (empty string)
 Specifies the proxy server to use for outgoing HTTP and HTTPS requests.
 Supports different proxy server types. Examples:
 
-```
+```ini
 https_proxy=http://example.org:1234
 https_proxy=https://example.org:1234
 https_proxy=socks4://example.org:1234
@@ -286,6 +304,9 @@ https_proxy=socks5://example.org:1234
 Healthchecks uses libcurl as the HTTP client library for making HTTP(S) requests.
 For more information about the proxy functionality, please see
 [libcurl documentation](https://curl.se/libcurl/c/CURLOPT_PROXY.html).
+
+Note: If your proxy server has a private IP address, you will also need to
+set the `INTEGRATIONS_ALLOW_PRIVATE_IPS` setting to `True` to use it.
 
 ## `INTEGRATIONS_ALLOW_PRIVATE_IPS` {: #INTEGRATIONS_ALLOW_PRIVATE_IPS }
 
@@ -308,8 +329,7 @@ while setting up new integrations (e.g. during the OAuth2 authorization flow).
 
 This setting also affects connections to the proxy server when the `http_proxy` or
 `https_proxy` environment variables are set. If your proxy server has a private
-IP address, you will need to enable `INTEGRATIONS_ALLOW_PRIVATE_IPS`
-in order to use it.
+IP address, you will need to enable `INTEGRATIONS_ALLOW_PRIVATE_IPS` to use it.
 
 ## `LINENOTIFY_CLIENT_ID` {: #LINENOTIFY_CLIENT_ID }
 
@@ -532,20 +552,36 @@ to your team account.
 
 Default: `None`
 
-Specifies the request header to use for external authentication.
-
-Healthchecks supports external authentication by means of HTTP headers set by
-reverse proxies or the WSGI server. This allows you to integrate it into your
-existing authentication system (e.g., LDAP or OAuth) via an authenticating proxy. When this option is enabled, **Healtchecks will trust the header's value implicitly**, so it is **very important** to ensure that attackers cannot set the value themselves (and thus impersonate any user). How to do this varies by your chosen proxy, but generally involves configuring it to strip out headers that normalize to the same name as the chosen identity header.
-
-To enable this feature, set the `REMOTE_USER_HEADER` value to a header you wish to authenticate with. HTTP headers will be prefixed with `HTTP_` and have any dashes converted to underscores. Headers without that prefix can be set by the WSGI server itself only, which is more secure.
+Specifies the request header to use for external authentication. If you use
+a reverse proxy that handles user authentication, and the reverse proxy can pass
+the authenticated user's email address in an HTTP request header, you can use this
+setting to integrate Healthchecks with it.
 
 When `REMOTE_USER_HEADER` is set, Healthchecks will:
 
+ - in views that require authentication, look up the request header
+   specified in `REMOTE_USER_HEADER`
  - assume the header contains the user's email address
- - look up and automatically log in the user with a matching email address
+ - automatically log in the user with a matching email address
  - automatically create a user account if it does not exist
  - disable the default authentication methods (login link to email, password)
+
+ The header name in `REMOTE_USER_HEADER` must be specified in upper-case,
+ with any dashes replaced with underscores, and prefixed with `HTTP_`. For
+ example, if your authentication proxy sets a `X-Authenticated-User` request
+ header, you should set `REMOTE_USER_HEADER=HTTP_X_AUTHENTICATED_USER`.
+
+**Important:** When this option is enabled, **Healthchecks will trust the header's
+value implicitly**, so it is **very important** to ensure that attackers cannot
+set the value themselves (and thus impersonate any user). How to do this varies by
+your chosen proxy, but generally involves configuring it to strip out headers that
+normalize to the same name as the chosen identity header.
+
+## `ROCKETCHAT_ENABLED` {: #ROCKETCHAT_ENABLED }
+
+Default: `True`
+
+A boolean that turns on/off the Rocket.Chat integration. Enabled by default.
 
 ## `RP_ID` {: #RP_ID }
 
@@ -617,7 +653,7 @@ A secret key used for cryptographic signing. Should be set to a unique,
 unpredictable value.
 
 This is a standard Django setting, read more in
-[Django documentation](https://docs.djangoproject.com/en/4.1/ref/settings/#secret-key).
+[Django documentation](https://docs.djangoproject.com/en/4.2/ref/settings/#secret-key).
 
 ## `SHELL_ENABLED` {: #SHELL_ENABLED }
 
@@ -631,21 +667,34 @@ the `SHELL_ENABLED` environment variable to `True`.
 
 Note: be careful when using "Shell Commands" integration, and only enable it when
 you fully trust the users of your Healthchecks instance. The commands will be executed
-by the `manage.py sendalerts` process, and will run with its system permissions.
+by the `manage.py sendalerts` process and will run with its system permissions.
 
 ## `SIGNAL_CLI_SOCKET` {: #SIGNAL_CLI_SOCKET }
 
 Default: `None`
 
-The path to the signal-cli UNIX socket.
+The path to the signal-cli UNIX socket, or the hostname:port of the signal-cli
+TCP socket.
+
+Example (UNIX socket):
+
+```ini
+SIGNAL_CLI_SOCKET=/tmp/signal-cli.socket
+```
+
+Example (TCP socket):
+
+```ini
+SIGNAL_CLI_SOCKET=example.org:7583
+```
 
 Healthchecks uses [signal-cli](https://github.com/AsamK/signal-cli) to send Signal
-notifications. Healthcecks interacts with signal-cli over UNIX socket (requires
+notifications. Healthcecks interacts with signal-cli over UNIX or TCP socket (requires
 signal-cli 0.10.0 or later).
 
 To enable the Signal integration:
 
-* Set up and configure signal-cli to expose JSON RPC on an UNIX socket
+* Set up and configure signal-cli to expose JSON RPC on an UNIX or TCP socket
   ([instructions](https://github.com/AsamK/signal-cli/wiki/JSON-RPC-service)).
   Example: `signal-cli -a +xxxxxx daemon --socket /tmp/signal-cli-socket`
 * Put the socket's location in the `SIGNAL_CLI_SOCKET` environment variable.
@@ -657,8 +706,8 @@ Default: `None`
 An URL pointing to the image you want to use as the site logo. If not set,
 Healthchecks will use a fallback image: `/static/img/logo.png`.
 
-You can place a custom logo in `/static/img/` and point `SITE_LOGO_URL`
-to it like so:
+You can place a custom logo in `/static/img/`, run `manage.py collectstatic`, and
+point `SITE_LOGO_URL` to it like so:
 
 ```ini
 SITE_LOGO_URL=/static/img/my-custom-logo.png
@@ -675,8 +724,23 @@ pages, and you should use an URL that **the end user's browser will be able to
 access directly**. The logo image can use any image format supported by browsers
 (PNG, SVG, JPG are all fine).
 
+**Docker note.** You can build a custom Docker image with your logo "baked in". To
+do so, use a Dockerfile with the following contents, and with your logo.png placed next
+to it:
+
+```docker
+FROM healthchecks/healthchecks
+COPY logo.png /opt/healthchecks/static-collected/img/
+```
+
+This overwrites the default placeholder logo, so, in this case, you do not need to
+specify `SITE_LOGO_URL`. Notice that the logo must be placed in `static-collected`, not
+`static`. This is because `manage.py collectstatic` has already been run in the base
+image's build time, and the web server will not recognize any new files placed in the
+`static` directory.
+
 Please do not use the Healthchecks.io logo (the one with the dark green background) on
-self-hosted instances. This logo is not part of the Healthchecks open source project.
+self-hosted instances. This logo is not part of the Healthchecks open-source project.
 
 ## `SITE_NAME` {: #SITE_NAME }
 
@@ -796,6 +860,27 @@ Example:
 
 ```ini
 TWILIO_FROM=+15017122661
+```
+
+## `TWILIO_MESSAGING_SERVICE_SID` {: #TWILIO_MESSAGING_SERVICE_SID }
+
+Default: `None`
+
+Optional, the Twilio Messaging Service SID for sending SMS and WhatsApp notifications.
+
+If `TWILIO_MESSAGING_SERVICE_SID` is specified, Healthchecks will include it in the
+"MessagingServiceSid" field when sending SMS and WhatsApp messages via Twilio API.
+This will result in Twilio using a Messaging Service instead of a plain sender number
+to deliver the SMS and WhatsApp messages.
+
+If `TWILIO_MESSAGING_SERVICE_SID` is not set, Healthchecks will fall back to using
+the "From" field with the value configured in [TWILIO_FROM](#TWILIO_FROM) in API
+requests.
+
+Example:
+
+```ini
+TWILIO_MESSAGING_SERVICE_SID=MGe56e622d540e6badc52ae0ac4af028c6
 ```
 
 ## `TWILIO_USE_WHATSAPP` {: #TWILIO_USE_WHATSAPP }

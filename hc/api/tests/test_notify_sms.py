@@ -1,17 +1,21 @@
 # coding: utf-8
 
-from datetime import timedelta as td
+from __future__ import annotations
+
 import json
-from unittest.mock import patch
+from datetime import timedelta as td
+from unittest.mock import Mock, patch
 
 from django.core import mail
+from django.test.utils import override_settings
 from django.utils.timezone import now
+
 from hc.api.models import Channel, Check, Notification
 from hc.test import BaseTestCase
 
 
 class NotifySmsTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self.check = Check(project=self.project)
@@ -25,36 +29,49 @@ class NotifySmsTestCase(BaseTestCase):
         self.channel.save()
         self.channel.checks.add(self.check)
 
+    @override_settings(TWILIO_FROM="+000", TWILIO_MESSAGING_SERVICE_SID=None)
     @patch("hc.api.transports.curl.request")
-    def test_it_works(self, mock_post):
+    def test_it_works(self, mock_post: Mock) -> None:
         self.check.last_ping = now() - td(hours=2)
         mock_post.return_value.status_code = 200
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["data"]
+        payload = mock_post.call_args.kwargs["data"]
         self.assertEqual(payload["To"], "+1234567890")
+        self.assertEqual(payload["From"], "+000")
         self.assertNotIn("\xa0", payload["Body"])
         self.assertIn("is DOWN", payload["Body"])
 
         n = Notification.objects.get()
-        callback_path = f"/api/v1/notifications/{n.code}/status"
+        callback_path = f"/api/v3/notifications/{n.code}/status"
         self.assertTrue(payload["StatusCallback"].endswith(callback_path))
 
         # sent SMS counter should go up
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.sms_sent, 1)
 
+    @override_settings(TWILIO_MESSAGING_SERVICE_SID="dummy-sid")
     @patch("hc.api.transports.curl.request")
-    def test_it_enforces_limit(self, mock_post):
+    def test_it_uses_messaging_service(self, mock_post: Mock) -> None:
+        self.check.last_ping = now() - td(hours=2)
+        mock_post.return_value.status_code = 200
+
+        self.channel.notify(self.check)
+
+        payload = mock_post.call_args.kwargs["data"]
+        self.assertEqual(payload["MessagingServiceSid"], "dummy-sid")
+        self.assertFalse("From" in payload)
+
+    @patch("hc.api.transports.curl.request")
+    def test_it_enforces_limit(self, mock_post: Mock) -> None:
         # At limit already:
         self.profile.last_sms_date = now()
         self.profile.sms_sent = 50
         self.profile.save()
 
         self.channel.notify(self.check)
-        self.assertFalse(mock_post.called)
+        mock_post.assert_not_called()
 
         n = Notification.objects.get()
         self.assertTrue("Monthly SMS limit exceeded" in n.error)
@@ -66,8 +83,9 @@ class NotifySmsTestCase(BaseTestCase):
         self.assertEqual(email.to[0], "alice@example.org")
         self.assertEqual(email.subject, "Monthly SMS Limit Reached")
 
+    @override_settings(TWILIO_FROM="+000")
     @patch("hc.api.transports.curl.request")
-    def test_it_resets_limit_next_month(self, mock_post):
+    def test_it_resets_limit_next_month(self, mock_post: Mock) -> None:
         # At limit, but also into a new month
         self.profile.sms_sent = 50
         self.profile.last_sms_date = now() - td(days=100)
@@ -76,10 +94,11 @@ class NotifySmsTestCase(BaseTestCase):
         mock_post.return_value.status_code = 200
 
         self.channel.notify(self.check)
-        self.assertTrue(mock_post.called)
+        mock_post.assert_called_once()
 
+    @override_settings(TWILIO_FROM="+000")
     @patch("hc.api.transports.curl.request")
-    def test_it_does_not_escape_special_characters(self, mock_post):
+    def test_it_does_not_escape_special_characters(self, mock_post: Mock) -> None:
         self.check.name = "Foo > Bar & Co"
         self.check.last_ping = now() - td(hours=2)
 
@@ -87,20 +106,20 @@ class NotifySmsTestCase(BaseTestCase):
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["data"]
+        payload = mock_post.call_args.kwargs["data"]
         self.assertIn("Foo > Bar & Co", payload["Body"])
 
     @patch("hc.api.transports.curl.request")
-    def test_it_handles_disabled_down_notification(self, mock_post):
+    def test_it_handles_disabled_down_notification(self, mock_post: Mock) -> None:
         payload = {"value": "+123123123", "up": True, "down": False}
         self.channel.value = json.dumps(payload)
 
         self.channel.notify(self.check)
-        self.assertFalse(mock_post.called)
+        mock_post.assert_not_called()
 
+    @override_settings(TWILIO_FROM="+000")
     @patch("hc.api.transports.curl.request")
-    def test_it_sends_up_notification(self, mock_post):
+    def test_it_sends_up_notification(self, mock_post: Mock) -> None:
         payload = {"value": "+123123123", "up": True, "down": False}
         self.channel.value = json.dumps(payload)
 
@@ -110,6 +129,6 @@ class NotifySmsTestCase(BaseTestCase):
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["data"]
+        payload = mock_post.call_args.kwargs["data"]
+        assert isinstance(payload["Body"], str)
         self.assertIn("is UP", payload["Body"])

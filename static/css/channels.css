@@ -196,8 +196,12 @@ table.channels-table > tbody > tr > th {
     animation: marker-ripple 1.2s ease-out infinite;
 }
 
-.ai-step p {
+.ai-step p, .ai-step ul {
     margin-left: 80px;
+}
+
+.ai-step ul {
+    padding-left: 20px;
 }
 
 @keyframes marker-ripple {
@@ -236,7 +240,32 @@ table.channels-table > tbody > tr > th {
     padding: 15px 40px;
 }
 
-body.dark .icon.mattermost,
-body.dark .icon.matrix {
+body.dark img.kind-mattermost,
+body.dark img.kind-matrix {
     filter: invert();
+}
+
+img.kind-ntfy {
+    filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.2));
+}
+
+#id_channels > div:nth-child(n+2) {
+    border-top: 1px solid var(--border-color);
+}
+
+#id_channels > div > label {
+    margin: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+}
+
+label[for^="id_channels"] {
+    cursor: pointer;
+}
+
+#id_channels input {
+    position: relative;
+    top: -1px;
 }

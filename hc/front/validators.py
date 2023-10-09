@@ -1,28 +1,37 @@
-from datetime import datetime
+from __future__ import annotations
 
-from cronsim import CronSim
+from datetime import datetime
+from urllib.parse import urlsplit, urlunsplit
+
+from cronsim import CronSim, CronSimError
 from django.core.exceptions import ValidationError
-from urllib.parse import urlparse
+from django.core.validators import URLValidator
 
 from hc.lib.tz import all_timezones
 
 
-class WebhookValidator(object):
-    message = "Enter a valid URL."
+class WebhookValidator(URLValidator):
+    schemes = ["http", "https"]
 
-    def __call__(self, value):
-        parsed = urlparse(value)
-        if parsed.scheme not in ("http", "https"):
-            raise ValidationError(message=self.message)
+    def add_tld(self, value: str) -> str:
+        fields = list(urlsplit(value))
+        hostport = fields[1].rsplit(":", maxsplit=1)
+        if "." not in hostport[0].rstrip("."):
+            # If netloc has no TLD, URLValidator will reject it.
+            # So, add a dummy TLD.
+            hostport[0] = hostport[0].rstrip(".") + ".dummytld"
+            fields[1] = ":".join(hostport)
+            value = urlunsplit(fields)
+        return value
 
-        if parsed.hostname in ("127.0.0.1", "localhost"):
-            raise ValidationError(message=self.message)
+    def __call__(self, value: str) -> None:
+        super().__call__(self.add_tld(value))
 
 
 class CronExpressionValidator(object):
     message = "Not a valid cron expression."
 
-    def __call__(self, value):
+    def __call__(self, value: str) -> None:
         # Expect 5 components-
         if len(value.split()) != 5:
             raise ValidationError(message=self.message)
@@ -32,13 +41,13 @@ class CronExpressionValidator(object):
             it = CronSim(value, datetime(2000, 1, 1))
             # Can it calculate the next datetime?
             next(it)
-        except:
+        except (CronSimError, StopIteration):
             raise ValidationError(message=self.message)
 
 
 class TimezoneValidator(object):
     message = "Not a valid time zone."
 
-    def __call__(self, value):
+    def __call__(self, value: str) -> None:
         if value not in all_timezones:
             raise ValidationError(message=self.message)

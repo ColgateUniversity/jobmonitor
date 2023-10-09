@@ -1,18 +1,20 @@
 # coding: utf-8
 
+from __future__ import annotations
+
 import json
-
 from datetime import timedelta as td
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+from django.test.utils import override_settings
 from django.utils.timezone import now
+
 from hc.api.models import Channel, Check, Notification, Ping
 from hc.test import BaseTestCase
-from django.test.utils import override_settings
 
 
 class NotifyMsTeamsTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self.check = Check(project=self.project)
@@ -31,7 +33,7 @@ class NotifyMsTeamsTestCase(BaseTestCase):
         self.channel.checks.add(self.check)
 
     @patch("hc.api.transports.curl.request")
-    def test_it_works(self, mock_post):
+    def test_it_works(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.check.name = "_underscores_ & more"
@@ -39,8 +41,7 @@ class NotifyMsTeamsTestCase(BaseTestCase):
         self.channel.notify(self.check)
         assert Notification.objects.count() == 1
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
+        payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["@type"], "MessageCard")
 
         # summary and title should be the same, except
@@ -56,33 +57,40 @@ class NotifyMsTeamsTestCase(BaseTestCase):
         self.assertNotIn(str(self.check.code), serialized)
 
     @patch("hc.api.transports.curl.request")
-    def test_msteams_escapes_html_and_markdown_in_desc(self, mock_post):
+    def test_it_shows_schedule_and_tz(self, mock_post: Mock) -> None:
+        mock_post.return_value.status_code = 200
+        self.check.kind = "cron"
+        self.check.tz = "Europe/Riga"
+        self.check.save()
+
+        self.channel.notify(self.check)
+        payload = mock_post.call_args.kwargs["json"]
+        facts = {f["name"]: f["value"] for f in payload["sections"][0]["facts"]}
+        self.assertEqual(facts["Schedule:"], "\u034f* \u034f* \u034f* \u034f* \u034f*")
+        self.assertEqual(facts["Time Zone:"], "Europe/Riga")
+
+    @patch("hc.api.transports.curl.request")
+    def test_it_escapes_stars_in_schedule(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
-        self.check.desc = """
-            TEST _underscore_ `backticks` <u>underline</u> \\backslash\\ "quoted"
-        """
+        self.check.kind = "cron"
+        self.check.save()
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        text = kwargs["json"]["sections"][0]["text"]
-
-        self.assertIn(r"\_underscore\_", text)
-        self.assertIn(r"\`backticks\`", text)
-        self.assertIn("&lt;u&gt;underline&lt;/u&gt;", text)
-        self.assertIn(r"\\backslash\\ ", text)
-        self.assertIn("&quot;quoted&quot;", text)
+        payload = mock_post.call_args.kwargs["json"]
+        facts = {f["name"]: f["value"] for f in payload["sections"][0]["facts"]}
+        self.assertEqual(facts["Schedule:"], "\u034f* \u034f* \u034f* \u034f* \u034f*")
 
     @override_settings(MSTEAMS_ENABLED=False)
-    def test_it_requires_msteams_enabled(self):
+    def test_it_requires_msteams_enabled(self) -> None:
         self.channel.notify(self.check)
 
         n = Notification.objects.get()
         self.assertEqual(n.error, "MS Teams notifications are not enabled.")
 
     @patch("hc.api.transports.curl.request")
-    def test_it_handles_last_ping_fail(self, mock_post):
+    def test_it_handles_last_ping_fail(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.ping.kind = "fail"
@@ -91,13 +99,12 @@ class NotifyMsTeamsTestCase(BaseTestCase):
         self.channel.notify(self.check)
         assert Notification.objects.count() == 1
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
+        payload = mock_post.call_args.kwargs["json"]
         facts = {f["name"]: f["value"] for f in payload["sections"][0]["facts"]}
         self.assertEqual(facts["Last Ping:"], "Failure, an hour ago")
 
     @patch("hc.api.transports.curl.request")
-    def test_it_handles_last_ping_log(self, mock_post):
+    def test_it_handles_last_ping_log(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.ping.kind = "log"
@@ -105,13 +112,12 @@ class NotifyMsTeamsTestCase(BaseTestCase):
 
         self.channel.notify(self.check)
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
+        payload = mock_post.call_args.kwargs["json"]
         facts = {f["name"]: f["value"] for f in payload["sections"][0]["facts"]}
         self.assertEqual(facts["Last Ping:"], "Log, an hour ago")
 
     @patch("hc.api.transports.curl.request")
-    def test_it_shows_ignored_nonzero_exitstatus(self, mock_post):
+    def test_it_shows_ignored_nonzero_exitstatus(self, mock_post: Mock) -> None:
         mock_post.return_value.status_code = 200
 
         self.ping.kind = "ign"
@@ -121,7 +127,48 @@ class NotifyMsTeamsTestCase(BaseTestCase):
         self.channel.notify(self.check)
         assert Notification.objects.count() == 1
 
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
+        payload = mock_post.call_args.kwargs["json"]
         facts = {f["name"]: f["value"] for f in payload["sections"][0]["facts"]}
         self.assertEqual(facts["Last Ping:"], "Ignored, an hour ago")
+
+    @patch("hc.api.transports.curl.request")
+    def test_it_shows_last_ping_body(self, mock_post: Mock) -> None:
+        mock_post.return_value.status_code = 200
+
+        self.ping.body_raw = b"Hello World"
+        self.ping.save()
+
+        self.channel.notify(self.check)
+        assert Notification.objects.count() == 1
+
+        payload = mock_post.call_args.kwargs["json"]
+        section = payload["sections"][-1]
+        self.assertIn("```\nHello World\n```", section["text"])
+
+    @patch("hc.api.transports.curl.request")
+    def test_it_shows_truncated_last_ping_body(self, mock_post: Mock) -> None:
+        mock_post.return_value.status_code = 200
+
+        self.ping.body_raw = b"Hello World" * 1000
+        self.ping.save()
+
+        self.channel.notify(self.check)
+        assert Notification.objects.count() == 1
+
+        payload = mock_post.call_args.kwargs["json"]
+        section = payload["sections"][-1]
+        self.assertIn("[truncated]", section["text"])
+
+    @patch("hc.api.transports.curl.request")
+    def test_it_skips_last_ping_body_with_backticks(self, mock_post: Mock) -> None:
+        mock_post.return_value.status_code = 200
+
+        self.ping.body_raw = b"Hello ``` World"
+        self.ping.save()
+
+        self.channel.notify(self.check)
+        assert Notification.objects.count() == 1
+
+        payload = mock_post.call_args.kwargs["json"]
+        section = payload["sections"][-1]
+        self.assertNotIn("Hello", section["text"])

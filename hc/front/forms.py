@@ -1,12 +1,19 @@
-from datetime import datetime, timedelta as td, timezone
+from __future__ import annotations
+
 import json
 import re
+from datetime import datetime
+from datetime import timedelta as td
+from datetime import timezone
 from urllib.parse import quote, urlencode
 
 from django import forms
-from django.forms import URLField
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+
+from hc.api.models import Channel
 from hc.front.validators import (
     CronExpressionValidator,
     TimezoneValidator,
@@ -15,7 +22,7 @@ from hc.front.validators import (
 from hc.lib import curl
 
 
-def _is_latin1(s):
+def _is_latin1(s: str) -> bool:
     try:
         s.encode("latin-1")
         return True
@@ -23,10 +30,14 @@ def _is_latin1(s):
         return False
 
 
+class LaxURLField(forms.URLField):
+    default_validators = [WebhookValidator()]
+
+
 class HeadersField(forms.Field):
     message = """Use "Header-Name: value" pairs, one per line."""
 
-    def to_python(self, value):
+    def to_python(self, value: str | None) -> dict[str, str]:
         if not value:
             return {}
 
@@ -52,7 +63,7 @@ class HeadersField(forms.Field):
 
         return headers
 
-    def validate(self, value):
+    def validate(self, value: dict[str, str]) -> None:
         super().validate(value)
         for k, v in value.items():
             if len(k) > 1000 or len(v) > 1000:
@@ -61,10 +72,11 @@ class HeadersField(forms.Field):
 
 class NameTagsForm(forms.Form):
     name = forms.CharField(max_length=100, required=False)
+    slug = forms.SlugField(max_length=100, required=False)
     tags = forms.CharField(max_length=500, required=False)
     desc = forms.CharField(required=False)
 
-    def clean_tags(self):
+    def clean_tags(self) -> str:
         result = []
 
         for part in self.cleaned_data["tags"].split(" "):
@@ -82,16 +94,17 @@ class AddCheckForm(NameTagsForm):
     tz = forms.CharField(max_length=36, validators=[TimezoneValidator()])
     grace = forms.IntegerField(min_value=60, max_value=31536000)
 
-    def clean_timeout(self):
+    def clean_timeout(self) -> td:
         return td(seconds=self.cleaned_data["timeout"])
 
-    def clean_grace(self):
+    def clean_grace(self) -> td:
         return td(seconds=self.cleaned_data["grace"])
 
 
 class FilteringRulesForm(forms.Form):
     filter_subject = forms.BooleanField(required=False)
     filter_body = forms.BooleanField(required=False)
+    start_kw = forms.CharField(required=False, max_length=200)
     success_kw = forms.CharField(required=False, max_length=200)
     failure_kw = forms.CharField(required=False, max_length=200)
     methods = forms.ChoiceField(required=False, choices=(("", "Any"), ("POST", "POST")))
@@ -102,10 +115,10 @@ class TimeoutForm(forms.Form):
     timeout = forms.IntegerField(min_value=60, max_value=31536000)
     grace = forms.IntegerField(min_value=60, max_value=31536000)
 
-    def clean_timeout(self):
+    def clean_timeout(self) -> td:
         return td(seconds=self.cleaned_data["timeout"])
 
-    def clean_grace(self):
+    def clean_grace(self) -> td:
         return td(seconds=self.cleaned_data["grace"])
 
 
@@ -121,23 +134,13 @@ class AddOpsgenieForm(forms.Form):
     key = forms.CharField(max_length=40)
 
 
-PRIO_CHOICES = [
-    ("-3", "Disabled"),
-    ("-2", "Lowest Priority"),
-    ("-1", "Low Priority"),
-    ("0", "Normal Priority"),
-    ("1", "High Priority"),
-    ("2", "Emergency Priority"),
-]
-
-
 class AddPushoverForm(forms.Form):
     error_css_class = "has-error"
     pushover_user_key = forms.CharField()
-    prio = forms.ChoiceField(initial="0", choices=PRIO_CHOICES)
-    prio_up = forms.ChoiceField(initial="0", choices=PRIO_CHOICES)
+    prio = forms.IntegerField(initial=0, min_value=-3, max_value=2)
+    prio_up = forms.IntegerField(initial=0, min_value=-3, max_value=2)
 
-    def get_value(self):
+    def get_value(self) -> str:
         key = self.cleaned_data["pushover_user_key"]
         prio = self.cleaned_data["prio"]
         prio_up = self.cleaned_data["prio_up"]
@@ -150,7 +153,7 @@ class EmailForm(forms.Form):
     down = forms.BooleanField(required=False, initial=True)
     up = forms.BooleanField(required=False, initial=True)
 
-    def clean(self):
+    def clean(self) -> None:
         super().clean()
 
         down = self.cleaned_data.get("down")
@@ -159,13 +162,13 @@ class EmailForm(forms.Form):
         if not down and not up:
             self.add_error("down", "Please select at least one.")
 
-    def get_value(self):
+    def get_value(self) -> str:
         return json.dumps(dict(self.cleaned_data), sort_keys=True)
 
 
 class AddUrlForm(forms.Form):
     error_css_class = "has-error"
-    value = forms.URLField(max_length=1000, validators=[WebhookValidator()])
+    value = LaxURLField(max_length=1000)
 
 
 METHODS = ("GET", "POST", "PUT")
@@ -178,18 +181,14 @@ class WebhookForm(forms.Form):
     method_down = forms.ChoiceField(initial="GET", choices=zip(METHODS, METHODS))
     body_down = forms.CharField(max_length=1000, required=False)
     headers_down = HeadersField(required=False)
-    url_down = URLField(
-        max_length=1000, required=False, validators=[WebhookValidator()]
-    )
+    url_down = LaxURLField(max_length=1000, required=False)
 
     method_up = forms.ChoiceField(initial="GET", choices=zip(METHODS, METHODS))
     body_up = forms.CharField(max_length=1000, required=False)
     headers_up = HeadersField(required=False)
-    url_up = forms.URLField(
-        max_length=1000, required=False, validators=[WebhookValidator()]
-    )
+    url_up = LaxURLField(max_length=1000, required=False)
 
-    def clean(self):
+    def clean(self) -> None:
         super().clean()
 
         url_down = self.cleaned_data.get("url_down")
@@ -199,7 +198,7 @@ class WebhookForm(forms.Form):
             if not self.has_error("url_down"):
                 self.add_error("url_down", "Enter a valid URL.")
 
-    def get_value(self):
+    def get_value(self) -> str:
         return json.dumps(dict(self.cleaned_data), sort_keys=True)
 
 
@@ -209,7 +208,7 @@ class AddShellForm(forms.Form):
     cmd_down = forms.CharField(max_length=1000, required=False)
     cmd_up = forms.CharField(max_length=1000, required=False)
 
-    def get_value(self):
+    def get_value(self) -> str:
         return json.dumps(dict(self.cleaned_data), sort_keys=True)
 
 
@@ -218,17 +217,18 @@ class PhoneNumberForm(forms.Form):
     label = forms.CharField(max_length=100, required=False)
     phone = forms.CharField()
 
-    def clean_phone(self):
+    def clean_phone(self) -> str:
         v = self.cleaned_data["phone"]
 
         stripped = v.encode("ascii", "ignore").decode("ascii")
+        assert isinstance(stripped, str)
         stripped = stripped.replace(" ", "").replace("-", "")
         if not re.match(r"^\+\d{5,15}$", stripped):
             raise forms.ValidationError("Invalid phone number format.")
 
         return stripped
 
-    def get_json(self):
+    def get_json(self) -> str:
         return json.dumps({"value": self.cleaned_data["phone"]})
 
 
@@ -236,7 +236,7 @@ class PhoneUpDownForm(PhoneNumberForm):
     up = forms.BooleanField(required=False, initial=True)
     down = forms.BooleanField(required=False, initial=True)
 
-    def clean(self):
+    def clean(self) -> None:
         super().clean()
 
         down = self.cleaned_data.get("down")
@@ -245,7 +245,7 @@ class PhoneUpDownForm(PhoneNumberForm):
         if not down and not up:
             self.add_error("down", "Please select at least one.")
 
-    def get_json(self):
+    def get_json(self) -> str:
         return json.dumps(
             {
                 "value": self.cleaned_data["phone"],
@@ -263,10 +263,12 @@ class AddMatrixForm(forms.Form):
     error_css_class = "has-error"
     alias = forms.CharField(max_length=100)
 
-    def clean_alias(self):
+    def clean_alias(self) -> str:
         v = self.cleaned_data["alias"]
+        assert isinstance(v, str)
 
         # validate it by trying to join
+        assert settings.MATRIX_HOMESERVER
         url = settings.MATRIX_HOMESERVER
         url += "/_matrix/client/r0/join/%s?" % quote(v)
         url += urlencode({"access_token": settings.MATRIX_ACCESS_TOKEN})
@@ -308,30 +310,64 @@ class AddZulipForm(forms.Form):
     error_css_class = "has-error"
     bot_email = forms.EmailField(max_length=100)
     api_key = forms.CharField(max_length=50)
-    site = forms.URLField(max_length=100, validators=[WebhookValidator()])
+    site = LaxURLField(max_length=100)
     mtype = forms.ChoiceField(choices=ZULIP_TARGETS)
     to = forms.CharField(max_length=100)
+    topic = forms.CharField(max_length=100, required=False)
 
-    def get_value(self):
+    def get_value(self) -> str:
         return json.dumps(dict(self.cleaned_data), sort_keys=True)
 
 
 class AddTrelloForm(forms.Form):
-    token = forms.RegexField(regex=r"^[0-9a-fA-F]{64}$")
+    token = forms.RegexField(regex=r"^[0-9a-fA-F]{64,256}$")
     board_name = forms.CharField(max_length=100)
     list_name = forms.CharField(max_length=100)
     list_id = forms.RegexField(regex=r"^[0-9a-fA-F]{16,32}$")
 
-    def get_value(self):
+    def get_value(self) -> str:
         return json.dumps(dict(self.cleaned_data), sort_keys=True)
 
 
 class AddGotifyForm(forms.Form):
     error_css_class = "has-error"
     token = forms.CharField(max_length=50)
-    url = forms.URLField(max_length=1000, validators=[WebhookValidator()])
+    url = LaxURLField(max_length=1000)
 
-    def get_value(self):
+    def get_value(self) -> str:
+        return json.dumps(dict(self.cleaned_data), sort_keys=True)
+
+
+class GroupForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        project = kwargs.pop("project")
+        super().__init__(*args, **kwargs)
+
+        self.fields["channels"].choices = (
+            (
+                c.code,
+                format_html('<span class="ic-{}"></span> {}', mark_safe(c.kind), c),
+            )
+            for c in Channel.objects.filter(project=project).exclude(kind="group")
+        )
+
+    error_css_class = "has-error"
+    label = forms.CharField(max_length=100, required=False)
+    channels = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple)
+
+    def get_value(self) -> str:
+        return ",".join(self.cleaned_data["channels"])
+
+
+class NtfyForm(forms.Form):
+    error_css_class = "has-error"
+    topic = forms.CharField(max_length=50)
+    url = LaxURLField(max_length=1000)
+    token = forms.CharField(max_length=100, required=False)
+    priority = forms.IntegerField(initial=3, min_value=0, max_value=5)
+    priority_up = forms.IntegerField(initial=3, min_value=0, max_value=5)
+
+    def get_value(self) -> str:
         return json.dumps(dict(self.cleaned_data), sort_keys=True)
 
 
@@ -344,8 +380,16 @@ class SeekForm(forms.Form):
     start = forms.IntegerField(min_value=1262296800, max_value=1893448800)
     end = forms.IntegerField(min_value=1262296800, max_value=1893448800)
 
-    def clean_start(self):
+    def clean_start(self) -> datetime:
         return datetime.fromtimestamp(self.cleaned_data["start"], tz=timezone.utc)
 
-    def clean_end(self):
+    def clean_end(self) -> datetime:
         return datetime.fromtimestamp(self.cleaned_data["end"], tz=timezone.utc)
+
+
+class TransferForm(forms.Form):
+    project = forms.UUIDField()
+
+
+class AddTelegramForm(forms.Form):
+    project = forms.UUIDField()

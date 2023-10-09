@@ -1,13 +1,17 @@
-from smtplib import SMTPServerDisconnected, SMTPDataError
+from __future__ import annotations
+
+from smtplib import SMTPDataError, SMTPServerDisconnected
+from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
-from hc.lib.emails import EmailThread
+from django.test.utils import override_settings
+
+from hc.lib.emails import EmailThread, send
 
 
 @patch("hc.lib.emails.time.sleep")
 class EmailsTestCase(TestCase):
-    def test_it_retries(self, mock_time):
+    def test_it_retries(self, mock_time: Mock) -> None:
         mock_msg = Mock()
         mock_msg.send = Mock(side_effect=[SMTPServerDisconnected, None])
 
@@ -16,7 +20,7 @@ class EmailsTestCase(TestCase):
 
         self.assertEqual(mock_msg.send.call_count, 2)
 
-    def test_it_limits_retries(self, mock_time):
+    def test_it_limits_retries(self, mock_time: Mock) -> None:
         mock_msg = Mock()
         mock_msg.send = Mock(side_effect=SMTPServerDisconnected)
 
@@ -26,7 +30,7 @@ class EmailsTestCase(TestCase):
 
         self.assertEqual(mock_msg.send.call_count, 3)
 
-    def test_it_retries_smtp_data_error(self, mock_time):
+    def test_it_retries_smtp_data_error(self, mock_time: Mock) -> None:
         mock_msg = Mock()
         mock_msg.send = Mock(side_effect=[SMTPDataError(454, "hello"), None])
 
@@ -34,3 +38,8 @@ class EmailsTestCase(TestCase):
         t.run()
 
         self.assertEqual(mock_msg.send.call_count, 2)
+
+    @override_settings(EMAIL_HOST="")
+    def test_it_requires_smtp_configuration(self, mock_time: Mock) -> None:
+        with self.assertRaises(AssertionError):
+            send(Mock())

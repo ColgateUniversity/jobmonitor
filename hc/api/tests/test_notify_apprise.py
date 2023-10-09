@@ -1,23 +1,28 @@
 # coding: utf-8
 
+from __future__ import annotations
+
 from datetime import timedelta as td
 from unittest import skipIf
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
+from django.test.utils import override_settings
 from django.utils.timezone import now
+
 from hc.api.models import Channel, Check, Notification
 from hc.test import BaseTestCase
-from django.test.utils import override_settings
 
 try:
     import apprise
+
+    have_apprise = bool(apprise)
 except ImportError:
-    apprise = None
+    have_apprise = False
 
 
-@skipIf(apprise is None, "apprise not installed")
+@skipIf(not have_apprise, "apprise not installed")
 class NotifyAppriseTestCase(BaseTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self.check = Check(project=self.project)
@@ -33,7 +38,7 @@ class NotifyAppriseTestCase(BaseTestCase):
 
     @patch("apprise.Apprise")
     @override_settings(APPRISE_ENABLED=True)
-    def test_apprise_enabled(self, mock_apprise):
+    def test_apprise_enabled(self, mock_apprise: Mock) -> None:
         mock_aobj = Mock()
         mock_aobj.add.return_value = True
         mock_aobj.notify.return_value = True
@@ -46,7 +51,7 @@ class NotifyAppriseTestCase(BaseTestCase):
 
     @patch("apprise.Apprise")
     @override_settings(APPRISE_ENABLED=False)
-    def test_apprise_disabled(self, mock_apprise):
+    def test_apprise_disabled(self, mock_apprise: Mock) -> None:
         self.channel.notify(self.check)
 
         n = Notification.objects.get()
